@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Тема Duolingo-стиля (Tailwind 4, CSS-first).
+   Фирменные цвета берём прямо утилитами Tailwind (green-500, sky-400,
+   rose-500 и т.д.). Здесь объявляем только семантические токены,
+   на которые ссылаются компоненты (кнопка: ring/ring-offset/primary-foreground).
+   ============================================================ */
+@theme {
+  --font-sans: var(--font-nunito), system-ui, "Segoe UI", sans-serif;
+
+  --color-background: #ffffff;
+  --color-foreground: #3c3c3c;
+
+  /* фокус-кольцо и текст на цветных кнопках */
+  --color-ring: #58cc02;
+  --color-primary-foreground: #ffffff;
+
+  /* фирменная палитра Duolingo (для точечного использования) */
+  --color-brand: #58cc02;
+  --color-brand-dark: #58a700;
+}
+
+html,
+body,
+:root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}

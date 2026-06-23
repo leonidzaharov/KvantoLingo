@@ -1,0 +1,131 @@
+// ============================================================
+// Prisma Schema — Геймифицированная платформа «Кванториум»
+// БД: PostgreSQL (Supabase в проде, локально — pg в Docker).
+// Подключение настраивается через DATABASE_URL/DIRECT_URL,
+// см. prisma.config.ts и src/lib/db.ts.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ДОМЕН 1: Пользователи и учебный контент
+// ============================================================
+
+/// Профиль ученика. Аутентификация через 4-значный PIN-код.
+model User {
+  id             String    @id @default(uuid())
+  name           String
+  pinHash        String
+  totalXp        Int       @default(0)
+  level          Int       @default(1)
+  currency       Int       @default(0)
+  streakDays     Int       @default(0)
+  lastActiveDate DateTime?
+  createdAt      DateTime  @default(now())
+
+  // Связи
+  achievements   UserAchievement[]
+  lessonProgress UserLessonProgress[]
+}
+
+/// Категория уроков (например: «Робототехника», «IT», «Промдизайн»)
+model Category {
+  id      Int      @id @default(autoincrement())
+  name    String
+  icon    String?
+  lessons Lesson[]
+}
+
+/// Отдельный урок с вопросами/заданиями в формате JSON
+model Lesson {
+  id         Int      @id @default(autoincrement())
+  categoryId Int
+  title      String
+  content    String   // JSON-строка с вопросами и заданиями
+  xpReward   Int      @default(10)
+  sortOrder  Int      @default(0)
+
+  category Category             @relation(fields: [categoryId], references: [id])
+  progress UserLessonProgress[]
+}
+
+/// Прогресс ученика по уроку. answeredCount/totalQuestions даёт реальный %
+/// для прогресс-бара на дашборде. isCompleted фиксируется один раз и
+/// блокирует повторное начисление XP за тот же урок.
+model UserLessonProgress {
+  userId         String
+  lessonId       Int
+  answeredCount  Int       @default(0)
+  wrongAttempts  Int       @default(0)
+  totalQuestions Int       @default(0)
+  isCompleted    Boolean   @default(false)
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id])
+  lesson Lesson @relation(fields: [lessonId], references: [id])
+
+  @@id([userId, lessonId])
+}
+
+// ============================================================
+// ДОМЕН 2: Достижения
+// ============================================================
+
+/// Справочник достижений (ачивок). `code` — стабильный идентификатор,
+/// под которым на достижение ссылается код приложения (см. lib/achievements).
+/// Числовой `id` остаётся PK, но не годится для ссылок из кода.
+model Achievement {
+  id             Int     @id @default(autoincrement())
+  code           String  @unique
+  title          String
+  description    String
+  icon           String?
+  targetValue    Int     // Целевое значение для разблокировки
+  rewardCurrency Int     @default(0)
+  isHidden       Boolean @default(false)
+
+  users UserAchievement[]
+}
+
+/// Связующая таблица «Пользователь ↔ Достижение» с прогрессом
+model UserAchievement {
+  userId        String
+  achievementId Int
+  progress      Int      @default(0)
+  isUnlocked    Boolean  @default(false)
+  unlockedAt    DateTime?
+
+  user        User        @relation(fields: [userId], references: [id])
+  achievement Achievement @relation(fields: [achievementId], references: [id])
+
+  @@id([userId, achievementId])
+}
+
+// ============================================================
+// ДОМЕН 3: Безопасность входа
+// ============================================================
+
+/// Журнал попыток логина для rate-limit'а 4-значного PIN.
+/// authorize() считает count неудачных за последние 15 минут — если ≥ 5,
+/// отказ независимо от верности PIN. Индекс по (userId, attemptedAt)
+/// держит COUNT(*) быстрым даже на десятках тысяч записей.
+/// FK на User НЕ ставим: попытки с несуществующим userId сюда не пишутся
+/// (см. src/auth.ts) — но если когда-то начнём логировать и enumeration,
+/// FK помешает каскадному удалению user'а.
+model LoginAttempt {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  succeeded   Boolean
+  attemptedAt DateTime @default(now())
+
+  @@index([userId, attemptedAt])
+}
