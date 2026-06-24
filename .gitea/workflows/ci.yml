@@ -1,0 +1,43 @@
+# CI «Кванториум» — Gitea Actions.
+# Гоняется на сервере git.haveaniceday.tech при каждом push в main и в pull request.
+# Требует, чтобы на инстансе были включены Actions и зарегистрирован раннер
+# (act_runner) с меткой ubuntu-latest. Если job не стартует — проверь метки раннера.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    env:
+      # ⚠️ ФЕЙКОВЫЕ значения — НЕ настоящие креды. Нужны только чтобы пройти
+      # import-time проверки сборки (db.ts падает, если DATABASE_URL пуст).
+      # К реальной БД на этапе build не ходим: все роуты динамические (ƒ),
+      # запросы к Postgres идут только в рантайме. Поэтому секреты в CI не нужны.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+      AUTH_SECRET: ci-build-only-placeholder-0123456789abcdef
+    steps:
+      - name: Забрать код
+        uses: actions/checkout@v4
+
+      - name: Поставить Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Установить зависимости (строго по lock-файлу)
+        run: npm ci
+
+      - name: Сгенерировать Prisma-клиент
+        run: npx prisma generate
+
+      - name: Линтер
+        run: npm run lint
+
+      - name: Сборка (включает проверку типов)
+        run: npm run build
