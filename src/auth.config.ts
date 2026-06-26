@@ -9,7 +9,7 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       // Защищенные маршруты
-      const isProtected = ['/lesson', '/achievements', '/learn', '/courses', '/leaderboard', '/profile'].some(route =>
+      const isProtected = ['/lesson', '/achievements', '/learn', '/courses', '/leaderboard', '/profile', '/interesting'].some(route =>
         nextUrl.pathname.startsWith(route)
       );
 

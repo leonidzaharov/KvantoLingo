@@ -6,6 +6,7 @@ import {
   BookOpen,
   Compass,
   Medal,
+  Sparkles,
   Trophy,
   User,
   type LucideIcon,
@@ -21,6 +22,7 @@ const ICONS: Record<string, LucideIcon> = {
   leaderboard: Medal,
   trophy: Trophy,
   profile: User,
+  interesting: Sparkles,
 };
 
 type SidebarItemProps = {

@@ -39,6 +39,7 @@ export const Sidebar = async ({ className }: SidebarProps) => {
         <SidebarItem label="Учить" href="/learn" icon="learn" />
         <SidebarItem label="Курсы" href="/courses" icon="courses" />
         <SidebarItem label="Лидерборд" href="/leaderboard" icon="leaderboard" />
+        <SidebarItem label="Интересное" href="/interesting" icon="interesting" />
         <SidebarItem label="Достижения" href="/achievements" icon="trophy" />
         <SidebarItem label="Профиль" href="/profile" icon="profile" />
       </div>
