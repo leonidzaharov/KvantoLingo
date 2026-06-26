@@ -57,8 +57,17 @@
      `git config core.hooksPath .githooks` (это ЛОКАЛЬНАЯ настройка, не коммитится — на
      новой машине повторить). Разовый обход: `git push --no-verify`.
    - ✅ Тесты в CI гоняются (шаг «Тесты (vitest)» между линтером и сборкой) — см. п.2.
-4. **Мониторинг ошибок** — НЕТ. Если прод упадёт — никто не узнает. Решение: Sentry
-   (бесплатный тариф, шлёт уведомление об ошибке).
+4. ⏳ **Мониторинг ошибок — КОД ГОТОВ, ЖДЁТ КЛЮЧ (2026-06-26).** Подключён `@sentry/nextjs`
+   (10.62.0; поддерживает Next 16). Минимальный вариант — только отлов ошибок, без билд-
+   плагина `withSentryConfig` (он нужен для source maps + auth-токен — отдельный шаг «потом»).
+   Файлы по конвенциям Next 16: `src/instrumentation-client.ts` (браузер, init + хук
+   навигации `onRouterTransitionStart`), `src/instrumentation.ts` (сервер: `register()` init
+   + нативный `onRequestError = captureRequestError`). Всё завязано на `NEXT_PUBLIC_SENTRY_DSN`:
+   нет ключа → выключено (init не вызывается, ничего не шлётся). `tracesSampleRate: 0` —
+   только ошибки, без трейсинга (бережём бесплатный тариф). tsc/lint/build/тесты зелёные.
+   🔻 **Осталось (нужен аккаунт пользователя):** завести проект на sentry.io → получить DSN →
+   положить в `.env` (локально) и в Vercel env (прод) как `NEXT_PUBLIC_SENTRY_DSN` → проверить
+   живой ошибкой. source maps (читаемые стектрейсы) — позже через `withSentryConfig` + токен.
 5. ⏳ **Заголовки безопасности — ЧАСТИЧНО (2026-06-24).** В `next.config.ts` через
    `async headers()` (source `/(.*)`) добавлены 6 «непробиваемых» заголовков:
    HSTS (`max-age=63072000; includeSubDomains`), X-Frame-Options (SAMEORIGIN),
