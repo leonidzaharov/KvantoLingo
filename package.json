@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "check-env": "node scripts/check-env.mjs",
     "rotate-pin": "node scripts/rotate-pin.mjs",
     "create-user": "node scripts/create-user.mjs",
@@ -47,7 +48,8 @@
     "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   },
   "overrides": {
     "@hono/node-server": "1.19.14"

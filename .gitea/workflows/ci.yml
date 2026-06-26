@@ -39,5 +39,8 @@ jobs:
       - name: Линтер
         run: npm run lint
 
+      - name: Тесты (vitest)
+        run: npm test
+
       - name: Сборка (включает проверку типов)
         run: npm run build

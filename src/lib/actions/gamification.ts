@@ -11,6 +11,11 @@ import {
   type UnlockedAchievement,
 } from "@/lib/achievements";
 import { IdSchema, parse, requireUser } from "@/lib/server-guard";
+import {
+  calculateLevel,
+  countQuestions,
+  nextStreak,
+} from "@/lib/gamification-logic";
 
 export type CompleteLessonResult = {
   gainedXp: number;
@@ -24,37 +29,6 @@ export type CompleteLessonResult = {
   /** Достижения, разблокированные ИМЕННО этим завершением (для тоста). */
   unlockedAchievements: UnlockedAchievement[];
 };
-
-const XP_PER_LEVEL = 100;
-
-function calculateLevel(totalXp: number): number {
-  return Math.floor(totalXp / XP_PER_LEVEL) + 1;
-}
-
-// Кол-во полных календарных дней между двумя датами (UTC),
-// чтобы расчёт стрика не зависел от часового пояса сервера.
-function fullDaysBetween(from: Date, to: Date): number {
-  const fromDay = Date.UTC(
-    from.getUTCFullYear(),
-    from.getUTCMonth(),
-    from.getUTCDate(),
-  );
-  const toDay = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
-  return Math.floor((toDay - fromDay) / 86_400_000);
-}
-
-type LessonContent = {
-  questions?: unknown[];
-};
-
-function countQuestions(content: string): number {
-  try {
-    const parsed = JSON.parse(content) as LessonContent;
-    return Array.isArray(parsed.questions) ? parsed.questions.length : 0;
-  } catch {
-    return 0;
-  }
-}
 
 export async function completeLesson(
   lessonId: number,
@@ -89,19 +63,7 @@ export async function completeLesson(
   const newTotalXp = user.totalXp + gainedXp;
   const newLevel = calculateLevel(newTotalXp);
 
-  let newStreak: number;
-  if (user.lastActiveDate === null) {
-    newStreak = 1;
-  } else {
-    const diff = fullDaysBetween(user.lastActiveDate, now);
-    if (diff === 0) {
-      newStreak = user.streakDays;
-    } else if (diff === 1) {
-      newStreak = user.streakDays + 1;
-    } else {
-      newStreak = 0;
-    }
-  }
+  const newStreak = nextStreak(user.lastActiveDate, user.streakDays, now);
 
   const totalQuestions = countQuestions(lesson.content);
 
