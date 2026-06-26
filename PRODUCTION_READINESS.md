@@ -52,8 +52,15 @@
    - Тесты в CI пока не гоняются — их ещё нет (см. п.2); добавятся туда после vitest.
 4. **Мониторинг ошибок** — НЕТ. Если прод упадёт — никто не узнает. Решение: Sentry
    (бесплатный тариф, шлёт уведомление об ошибке).
-5. **Заголовки безопасности** — `next.config.ts` пустой. Добавить CSP, X-Frame-Options
-   (антикликджекинг), HSTS, X-Content-Type-Options через `headers()` в next.config.
+5. ⏳ **Заголовки безопасности — ЧАСТИЧНО (2026-06-24).** В `next.config.ts` через
+   `async headers()` (source `/(.*)`) добавлены 6 «непробиваемых» заголовков:
+   HSTS (`max-age=63072000; includeSubDomains`), X-Frame-Options (SAMEORIGIN),
+   X-Content-Type-Options (nosniff), Referrer-Policy (strict-origin-when-cross-origin),
+   Permissions-Policy (camera/mic/geo/topics выключены), X-DNS-Prefetch-Control (on).
+   Проверено на проде-сборке локально (`next start` → curl -I: все 6 присутствуют, сайт 200).
+   🔻 **CSP пока НЕ добавлен** — сознательно: для App Router нужен nonce + правка
+   middleware, кривой CSP блокирует inline-скрипты Next и кладёт страницы. Отдельный
+   аккуратный шаг с тестами (можно начать с Content-Security-Policy-Report-Only).
 6. **Долг по миграциям БД** — удаление инвентаря шло через `db push` мимо истории
    миграций + дрейф (см. PROGRESS.md / память). Перед след. изменением схемы — ре-baseline.
 
