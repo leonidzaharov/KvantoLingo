@@ -27,7 +27,7 @@ export function fullDaysBetween(from: Date, to: Date): number {
  * - первая активность вообще → 1;
  * - тот же день → стрик не меняется;
  * - следующий день → +1;
- * - пропуск (≥2 дня) → сброс в 0.
+ * - пропуск (≥2 дня) → перезапуск в 1 (ученик-таки позанимался сегодня).
  */
 export function nextStreak(
   lastActiveDate: Date | null,
@@ -39,7 +39,7 @@ export function nextStreak(
   const diff = fullDaysBetween(lastActiveDate, now);
   if (diff === 0) return currentStreak;
   if (diff === 1) return currentStreak + 1;
-  return 0;
+  return 1;
 }
 
 type LessonContent = {

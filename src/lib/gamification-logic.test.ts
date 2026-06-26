@@ -61,9 +61,9 @@ describe("nextStreak", () => {
     expect(nextStreak(yesterday, 4, now)).toBe(5);
   });
 
-  it("пропуск двух и более дней → сброс в 0", () => {
+  it("пропуск двух и более дней → перезапуск в 1 (занимался сегодня)", () => {
     const threeDaysAgo = new Date("2026-06-23T12:00:00Z");
-    expect(nextStreak(threeDaysAgo, 9, now)).toBe(0);
+    expect(nextStreak(threeDaysAgo, 9, now)).toBe(1);
   });
 });
 
