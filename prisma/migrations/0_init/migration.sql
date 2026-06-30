@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -39,6 +42,7 @@ CREATE TABLE "UserLessonProgress" (
     "userId" TEXT NOT NULL,
     "lessonId" INTEGER NOT NULL,
     "answeredCount" INTEGER NOT NULL DEFAULT 0,
+    "wrongAttempts" INTEGER NOT NULL DEFAULT 0,
     "totalQuestions" INTEGER NOT NULL DEFAULT 0,
     "isCompleted" BOOLEAN NOT NULL DEFAULT false,
     "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -74,56 +78,20 @@ CREATE TABLE "UserAchievement" (
 );
 
 -- CreateTable
-CREATE TABLE "Slot" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-
-    CONSTRAINT "Slot_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "InventoryItem" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-    "svgAssetPath" TEXT NOT NULL,
-    "price" INTEGER NOT NULL,
-    "rarity" TEXT NOT NULL DEFAULT 'common',
-
-    CONSTRAINT "InventoryItem_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "ItemSlot" (
-    "itemId" INTEGER NOT NULL,
-    "slotId" INTEGER NOT NULL,
-
-    CONSTRAINT "ItemSlot_pkey" PRIMARY KEY ("itemId","slotId")
-);
-
--- CreateTable
-CREATE TABLE "UserInventory" (
-    "userId" TEXT NOT NULL,
-    "itemId" INTEGER NOT NULL,
-    "acquiredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "UserInventory_pkey" PRIMARY KEY ("userId","itemId")
-);
-
--- CreateTable
-CREATE TABLE "UserEquipped" (
+CREATE TABLE "LoginAttempt" (
     "id" SERIAL NOT NULL,
     "userId" TEXT NOT NULL,
-    "itemId" INTEGER NOT NULL,
-    "slotId" INTEGER NOT NULL,
+    "succeeded" BOOLEAN NOT NULL,
+    "attemptedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "UserEquipped_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "LoginAttempt_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Achievement_code_key" ON "Achievement"("code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UserEquipped_userId_slotId_key" ON "UserEquipped"("userId", "slotId");
+CREATE INDEX "LoginAttempt_userId_attemptedAt_idx" ON "LoginAttempt"("userId", "attemptedAt");
 
 -- AddForeignKey
 ALTER TABLE "Lesson" ADD CONSTRAINT "Lesson_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -140,23 +108,3 @@ ALTER TABLE "UserAchievement" ADD CONSTRAINT "UserAchievement_userId_fkey" FOREI
 -- AddForeignKey
 ALTER TABLE "UserAchievement" ADD CONSTRAINT "UserAchievement_achievementId_fkey" FOREIGN KEY ("achievementId") REFERENCES "Achievement"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "ItemSlot" ADD CONSTRAINT "ItemSlot_itemId_fkey" FOREIGN KEY ("itemId") REFERENCES "InventoryItem"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ItemSlot" ADD CONSTRAINT "ItemSlot_slotId_fkey" FOREIGN KEY ("slotId") REFERENCES "Slot"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserInventory" ADD CONSTRAINT "UserInventory_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserInventory" ADD CONSTRAINT "UserInventory_itemId_fkey" FOREIGN KEY ("itemId") REFERENCES "InventoryItem"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserEquipped" ADD CONSTRAINT "UserEquipped_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserEquipped" ADD CONSTRAINT "UserEquipped_itemId_fkey" FOREIGN KEY ("itemId") REFERENCES "InventoryItem"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UserEquipped" ADD CONSTRAINT "UserEquipped_slotId_fkey" FOREIGN KEY ("slotId") REFERENCES "Slot"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

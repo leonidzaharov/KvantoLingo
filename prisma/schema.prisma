@@ -129,3 +129,29 @@ model LoginAttempt {
 
   @@index([userId, attemptedAt])
 }
+
+// ============================================================
+// ДОМЕН 4: Блок «Интересное» (внеурочные материалы)
+// ============================================================
+
+/// Тип материала — определяет, как карточка рендерится на /interesting.
+enum ResourceType {
+  scratch // встроенный проект Scratch (url = ID проекта из ссылки)
+  video // встроенное видео YouTube (url = ID видео после v=)
+  article // внешняя ссылка (url = полный https-адрес)
+  note // текстовый совет наставника (текст в body)
+}
+
+/// Материал блока «Интересное». Раньше был статичным списком в коде
+/// (src/app/(main)/interesting/resources.ts) — перенесён в БД, чтобы
+/// добавлять/править через будущую админку, а не правкой файлов.
+model Resource {
+  id          Int          @id @default(autoincrement())
+  type        ResourceType
+  title       String
+  description String? // короткое пояснение под заголовком
+  url         String? // смысл зависит от type (см. enum выше)
+  body        String? // текст для type = note
+  sortOrder   Int          @default(0) // порядок отображения (меньше — выше)
+  createdAt   DateTime     @default(now())
+}

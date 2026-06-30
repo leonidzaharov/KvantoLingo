@@ -2,15 +2,21 @@ import { Sparkles } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { prisma } from "@/lib/db";
 
 import { ResourceCard } from "./card";
-import { RESOURCES } from "./resources";
 
 export default async function InterestingPage() {
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/");
   }
+
+  // Материалы лежат в БД (модель Resource) — раньше были статичным списком.
+  // sortOrder задаёт порядок: меньше — выше.
+  const resources = await prisma.resource.findMany({
+    orderBy: { sortOrder: "asc" },
+  });
 
   return (
     <div className="px-3">
@@ -26,11 +32,17 @@ export default async function InterestingPage() {
           Видео, проекты и ссылки, чтобы пробовать новое за пределами уроков.
         </p>
 
-        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
-          {RESOURCES.map((resource) => (
-            <ResourceCard key={resource.id} resource={resource} />
-          ))}
-        </div>
+        {resources.length === 0 ? (
+          <p className="mt-6 rounded-2xl border-2 border-dashed border-neutral-200 px-6 py-10 text-center text-neutral-400">
+            Пока тут пусто — материалы скоро появятся.
+          </p>
+        ) : (
+          <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+            {resources.map((resource) => (
+              <ResourceCard key={resource.id} resource={resource} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

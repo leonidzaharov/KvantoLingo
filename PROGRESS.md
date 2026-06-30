@@ -115,9 +115,11 @@
 N/target, награда ⭐, дата. Серверная выборка ачивок не менялась. **Пиксельных
 экранов в авторизованной части больше НЕТ.**
 
-🔻 **Остатки (не блокируют):** `scripts/build-sprites.mjs` + `package.json"build-sprites"`
-ссылаются на удалённый `public/ranger` — мёртвый dev-скрипт, можно убрать. Категории
-в БД пока HTML/JavaScript/Scratch (сид), не Робототехника/IT/Промдизайн.
+✅ **Мёртвый спрайт-пайплайн убран (2026-06-30):** удалён `scripts/build-sprites.mjs`,
+строка `"build-sprites"` из `package.json`, лишняя прямая зависимость `sharp` из
+devDependencies (Next тянет её сам как optional) и мёртвый блок про `/assets` в
+`.gitignore`. tsc=0/lint=0. 🔻 Остаётся: категории в БД пока HTML/JavaScript/Scratch
+(сид), не Робототехника/IT/Промдизайн — это решение, не баг.
 
 ### Шаг C — Схема + миграция ✅ ГОТОВО (2026-06-23, db push, tsc=0, данные целы)
 - Из `schema.prisma` удалены модели **Slot/InventoryItem/ItemSlot/UserInventory/
@@ -134,12 +136,30 @@ N/target, награда ⭐, дата. Серверная выборка ачи
   `prisma/migrations` всё ещё без `add_wrong_attempts` → следующий `migrate dev`
   снова увидит дрейф. Перед возвратом к migrate-флоу историю надо ре-baseline'нуть
   (или `migrate diff`-ом собрать недостающее). `wrongAttempts` кодом не используется.
+- ✅ **Долг закрыт ре-baseline'ом (2026-06-30):** живая БД совпадала со схемой
+  (`migrate diff` пуст), врала только история. Свернул 2 старых файла + 3 записи в
+  `_prisma_migrations` в одну стартовую `0_init` (сгенерирована из схемы:
+  без инвентаря, с `wrongAttempts`). Очистил `_prisma_migrations` (бэкап снят,
+  реальные таблицы не тронуты) и пометил `0_init` применённой через
+  `migrate resolve --applied`. Проверка: `migrate status` = up to date (1 миграция),
+  `diff` пуст. `migrate dev` для будущих таблиц (Resource, ачивки) теперь не требует reset.
 - 🪤 `prisma/seed.ts` запускать только с `SEED_FORCE=1` — он чистит каталог. Guard
   (existingProgress>0 → exit) проверен в бою, данные защищает.
 
 ### Шаг D — Экран урока в стиле Duolingo ✅ (см. выше, готово до Шага C)
 
 ### Шаг E — Прочее (в работе)
+- ✅ **«Интересное» → в БД (2026-06-30, tsc=0/lint=0):** материалы блока перенесены
+  из статичного `resources.ts` в новую модель Prisma **`Resource`** (+ enum `ResourceType`:
+  scratch/video/article/note, поле `sortOrder`). Это первое чистое изменение схемы
+  после ре-baseline: миграция `20260630221629_add_resources` сгенерирована
+  `migrate diff --from-config-datasource --to-schema` (т.к. `migrate dev` на Supabase-пулере
+  упирается в shadow-БД) и применена `migrate deploy` (только CREATE, без потери данных).
+  Стартовые 4 материала залиты идемпотентным `scripts/seed-resources.mjs`
+  (`npm run seed-resources`; НЕ трогает уроки, в отличие от `prisma/seed.ts`).
+  `interesting/page.tsx` читает из БД (`findMany orderBy sortOrder`) + пустое состояние;
+  `resources.ts` удалён, типы берутся из Prisma-клиента. 🔻 Следующий шаг — админка для
+  добавления/правки материалов (и уроков) через UI.
 - ✅ **Лидерборд (2026-06-23, tsc=0/lint=0, live 200):** `src/app/(main)/leaderboard/page.tsx`
   — топ-10, аватар-инициалы, ранг (top-3 цветной), подсветка текущего юзера «(ты)».
   **Вкладки XP / стрик** через URL-параметр `?sort=xp|streak` (остаётся серверным
@@ -164,8 +184,8 @@ N/target, награда ⭐, дата. Серверная выборка ачи
   Env заданы ТОЛЬКО для Production (Preview/Dev пустые → превью-деплой упадёт на check-env).
   ➕ Добавил `.vercelignore` (.env/duo/_archive) — Vercel ругался, что подхватил `.env`
   в бандл (применится со следующим деплоем). 🔻 На Vercel висит старый проект `cyber-citadel`.
-- 🔻 Мелочь: мёртвый `scripts/build-sprites.mjs` (+ `package.json"build-sprites"`) →
-  ссылается на удалённый `public/ranger`, можно убрать.
+- ✅ Мелочь закрыта (2026-06-30): мёртвый `scripts/build-sprites.mjs` +
+  `package.json"build-sprites"` + лишняя зависимость `sharp` удалены.
 
 ---
 

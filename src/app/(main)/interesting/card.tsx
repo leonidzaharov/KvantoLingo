@@ -1,8 +1,7 @@
 import { ExternalLink, Lightbulb, Play, Puzzle, type LucideIcon } from "lucide-react";
 
+import type { Resource, ResourceType } from "@/generated/prisma";
 import { cn } from "@/lib/utils";
-
-import type { Resource, ResourceType } from "./resources";
 
 // Иконка + подпись + цвет бейджа для каждого типа материала.
 const TYPE_META: Record<ResourceType, { icon: LucideIcon; label: string; color: string }> = {
@@ -89,7 +88,7 @@ function CardBody({ resource }: { resource: Resource }) {
     case "article":
       return (
         <a
-          href={resource.url}
+          href={resource.url ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-auto inline-flex items-center gap-x-1.5 self-start rounded-xl bg-sky-100 px-4 py-2 font-bold text-sky-600 transition hover:bg-sky-200"
