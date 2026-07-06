@@ -29,6 +29,7 @@ export async function saveResource(
     description: formData.get("description"),
     url: formData.get("url"),
     body: formData.get("body"),
+    coinReward: formData.get("coinReward"),
     sortOrder: formData.get("sortOrder"),
   });
   if (!parsed.ok) {

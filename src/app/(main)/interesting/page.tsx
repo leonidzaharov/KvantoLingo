@@ -15,9 +15,17 @@ export default async function InterestingPage() {
   // Материалы лежат в БД (модель Resource) — раньше были статичным списком.
   // sortOrder задаёт порядок: меньше — выше. При равном sortOrder порядок
   // добивается по id — иначе Postgres волен возвращать «ничьи» как попало.
-  const resources = await prisma.resource.findMany({
-    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-  });
+  // Вторым запросом — отметки «Изучил» текущего ученика (для кнопок).
+  const [resources, studiedRows] = await Promise.all([
+    prisma.resource.findMany({
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    }),
+    prisma.userResource.findMany({
+      where: { userId: session.user.id },
+      select: { resourceId: true },
+    }),
+  ]);
+  const studiedIds = new Set(studiedRows.map((r) => r.resourceId));
 
   return (
     <div className="px-3">
@@ -40,7 +48,11 @@ export default async function InterestingPage() {
         ) : (
           <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
             {resources.map((resource) => (
-              <ResourceCard key={resource.id} resource={resource} />
+              <ResourceCard
+                key={resource.id}
+                resource={resource}
+                studied={studiedIds.has(resource.id)}
+              />
             ))}
           </div>
         )}

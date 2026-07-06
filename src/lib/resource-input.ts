@@ -10,6 +10,16 @@ import { z } from "zod";
 
 import type { ResourceType } from "@/generated/prisma";
 
+// Монеты за «Изучил» по умолчанию — тарифы наставника (2026-07-06):
+// совет 1, проект Scratch 2, видео 3, внешняя ссылка 1.
+// Форма админки подставляет их при выборе типа, но значение можно поменять.
+export const DEFAULT_COIN_REWARD: Record<ResourceType, number> = {
+  note: 1,
+  scratch: 2,
+  video: 3,
+  article: 1,
+};
+
 // Наставник вставляет ссылку на видео как удобно — полную или уже ID.
 // Приводим к 11-символьному ID, который ждёт iframe youtube-nocookie.
 export function extractYouTubeId(raw: string): string | null {
@@ -62,6 +72,7 @@ const BaseSchema = z.object({
   description: z.string().trim().max(300),
   url: z.string().trim().max(2000),
   body: z.string().trim().max(2000),
+  coinReward: z.coerce.number().int().min(0).max(100),
   sortOrder: z.coerce.number().int().min(0).max(1_000_000),
 });
 
@@ -72,6 +83,7 @@ export type ResourceData = {
   description: string | null;
   url: string | null;
   body: string | null;
+  coinReward: number;
   sortOrder: number;
 };
 
@@ -91,6 +103,7 @@ export function parseResourceInput(raw: {
   description: unknown;
   url: unknown;
   body: unknown;
+  coinReward: unknown;
   sortOrder: unknown;
 }): ParseResult {
   const parsed = BaseSchema.safeParse(raw);
@@ -98,10 +111,11 @@ export function parseResourceInput(raw: {
     return {
       ok: false,
       error:
-        "Проверь поля: нужен тип, заголовок до 120 символов и порядок — целое число.",
+        "Проверь поля: нужен тип, заголовок до 120 символов, монеты 0–100 и порядок — целые числа.",
     };
   }
-  const { type, title, description, url, body, sortOrder } = parsed.data;
+  const { type, title, description, url, body, coinReward, sortOrder } =
+    parsed.data;
 
   const base = {
     type,
@@ -109,6 +123,7 @@ export function parseResourceInput(raw: {
     description: description || null,
     url: null as string | null,
     body: null as string | null,
+    coinReward,
     sortOrder,
   };
 

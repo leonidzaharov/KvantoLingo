@@ -3,6 +3,8 @@ import { ExternalLink, Lightbulb, Play, Puzzle, type LucideIcon } from "lucide-r
 import type { Resource, ResourceType } from "@/generated/prisma";
 import { cn } from "@/lib/utils";
 
+import { StudyButton } from "./study-button";
+
 // Иконка + подпись + цвет бейджа для каждого типа материала.
 const TYPE_META: Record<ResourceType, { icon: LucideIcon; label: string; color: string }> = {
   scratch: { icon: Puzzle, label: "Scratch", color: "bg-orange-400" },
@@ -15,7 +17,13 @@ const TYPE_META: Record<ResourceType, { icon: LucideIcon; label: string; color: 
 // карточки растягиваем на 2 колонки на десктопе.
 const isEmbed = (type: ResourceType) => type === "video" || type === "scratch";
 
-export function ResourceCard({ resource }: { resource: Resource }) {
+export function ResourceCard({
+  resource,
+  studied,
+}: {
+  resource: Resource;
+  studied: boolean;
+}) {
   const meta = TYPE_META[resource.type];
   const Icon = meta.icon;
 
@@ -51,6 +59,12 @@ export function ResourceCard({ resource }: { resource: Resource }) {
       )}
 
       <CardBody resource={resource} />
+
+      <StudyButton
+        resourceId={resource.id}
+        coinReward={resource.coinReward}
+        studied={studied}
+      />
     </article>
   );
 }

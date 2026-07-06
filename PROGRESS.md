@@ -210,6 +210,19 @@ devDependencies (Next тянет её сам как optional) и мёртвый 
   points/coins/hearts). Счётчик монет (Coins, amber) добавлен в `user-progress`
   на /learn (select currency). Категории в живой БД: id 8=HTML, 9=JS, 10=Scratch.
   🔻 Проставить осмысленные coinReward per-урок можно будет в админке уроков.
+- ✅ **Кнопка «Изучил» в «Интересном» (2026-07-06, tsc=0/lint=0/20 тестов, live):**
+  поле **`Resource.coinReward`** (default 1) + таблица **`UserResource`**
+  (PK userId+resourceId, onDelete Cascade от Resource) — миграция
+  `add_resource_study` со встроенным UPDATE: существующим материалам тарифы
+  по типу (видео 3 / Scratch 2 / совет и ссылка 1; `DEFAULT_COIN_REWARD` в
+  `resource-input.ts`). Экшен `studyResource` (`src/lib/actions/study.ts`):
+  разовое начисление в транзакции, повтор/гонка гасятся P2002 по PK
+  (проверено вживую на временном юзере: 1-й клик +1, 2-й — не начислил).
+  UI: `study-button.tsx` (client) на карточке — «Изучил +N» → бейдж
+  «Изучено ✓» после revalidate; в форме админки поле «Монеты за Изучил»
+  (key=type: при смене типа в создании подставляется тариф). Сид
+  seed-resources.mjs обновлён. live: /interesting 200 с 7 кнопками,
+  форма админки с полем — 200.
 - ✅ **Лидерборд (2026-06-23, tsc=0/lint=0, live 200):** `src/app/(main)/leaderboard/page.tsx`
   — топ-10, аватар-инициалы, ранг (top-3 цветной), подсветка текущего юзера «(ты)».
   **Вкладки XP / стрик** через URL-параметр `?sort=xp|streak` (остаётся серверным

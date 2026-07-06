@@ -69,6 +69,7 @@ describe("parseResourceInput", () => {
     description: "",
     url: "",
     body: "",
+    coinReward: "3",
     sortOrder: "0",
   };
 
@@ -86,6 +87,7 @@ describe("parseResourceInput", () => {
         description: null,
         url: "M7lc1UVf-VE",
         body: null,
+        coinReward: 3,
         sortOrder: 0,
       },
     });
@@ -137,5 +139,23 @@ describe("parseResourceInput", () => {
       body: "текст",
     });
     expect(r.ok).toBe(false);
+  });
+
+  it("монеты вне диапазона 0–100 или мусор — ошибка", () => {
+    const negative = parseResourceInput({
+      ...base,
+      type: "note",
+      body: "текст",
+      coinReward: "-1",
+    });
+    expect(negative.ok).toBe(false);
+
+    const junk = parseResourceInput({
+      ...base,
+      type: "note",
+      body: "текст",
+      coinReward: "abc",
+    });
+    expect(junk.ok).toBe(false);
   });
 });

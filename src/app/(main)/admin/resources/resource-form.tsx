@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import type { Resource, ResourceType } from "@/generated/prisma";
 import { saveResource, type ResourceFormState } from "@/lib/actions/resources";
+import { DEFAULT_COIN_REWARD } from "@/lib/resource-input";
 import { Button } from "@/components/ui/button";
 
 import { TYPE_LABELS } from "./type-labels";
@@ -116,6 +117,25 @@ export const ResourceForm = ({
       ) : (
         <input type="hidden" name="body" value="" />
       )}
+
+      <label className="flex flex-col gap-y-1.5">
+        <span className="font-bold text-neutral-700">Монеты за «Изучил»</span>
+        <input
+          // key=type: при смене типа в форме СОЗДАНИЯ поле пересоздаётся
+          // с новым тарифом по умолчанию (1/2/3). При правке — значение из БД.
+          key={resource ? "edit" : type}
+          type="number"
+          name="coinReward"
+          required
+          min={0}
+          max={100}
+          defaultValue={resource?.coinReward ?? DEFAULT_COIN_REWARD[type]}
+          className={inputClass}
+        />
+        <span className="text-sm text-neutral-400">
+          Начисляются ученику один раз — при нажатии «Изучил» на карточке.
+        </span>
+      </label>
 
       <label className="flex flex-col gap-y-1.5">
         <span className="font-bold text-neutral-700">Порядок</span>

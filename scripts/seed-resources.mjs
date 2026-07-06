@@ -26,13 +26,15 @@ if (!databaseUrl) {
 const adapter = new PrismaPg({ connectionString: databaseUrl });
 const prisma = new PrismaClient({ adapter });
 
-// Стартовые материалы. sortOrder задаёт порядок на странице (меньше — выше).
+// Стартовые материалы. sortOrder задаёт порядок на странице (меньше — выше),
+// coinReward — монеты за «Изучил» (тарифы: совет 1 / Scratch 2 / видео 3).
 const RESOURCES = [
   {
     type: "video",
     title: "Как устроено встроенное видео",
     description: "Пример видео прямо на странице (замени на своё).",
     url: "M7lc1UVf-VE", // ID видео YouTube (после v= в ссылке)
+    coinReward: 3,
     sortOrder: 0,
   },
   {
@@ -40,6 +42,7 @@ const RESOURCES = [
     title: "Проект Scratch внутри страницы",
     description: "Пример встроенного проекта Scratch (замени ID на свой).",
     url: "10128407", // ID проекта из ссылки scratch.mit.edu/projects/<ID>
+    coinReward: 2,
     sortOrder: 1,
   },
   {
@@ -47,12 +50,14 @@ const RESOURCES = [
     title: "Сайт Scratch",
     description: "Создавай свои игры и анимации онлайн.",
     url: "https://scratch.mit.edu",
+    coinReward: 1,
     sortOrder: 2,
   },
   {
     type: "note",
     title: "Совет от наставника",
     body: "На каникулах не обязательно проходить уроки каждый день — лучше выбери один проект из «Интересного» и попробуй сделать что-то своё. Эксперименты важнее серий!",
+    coinReward: 1,
     sortOrder: 3,
   },
 ];
