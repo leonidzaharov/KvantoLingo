@@ -128,7 +128,8 @@ export const ResourceForm = ({
           className={inputClass}
         />
         <span className="text-sm text-neutral-400">
-          Меньше — выше на странице «Интересное».
+          Меньше — выше на странице «Интересное». Если номер занят, материал
+          встанет на это место, а остальные сдвинутся вниз.
         </span>
       </label>
 

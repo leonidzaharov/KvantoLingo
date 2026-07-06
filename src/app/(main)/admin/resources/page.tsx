@@ -13,8 +13,9 @@ import { TYPE_LABELS } from "./type-labels";
 export default async function AdminResourcesPage() {
   await requireAdminOr404();
 
+  // Та же сортировка, что на /interesting, — админ видит список 1-в-1.
   const resources = await prisma.resource.findMany({
-    orderBy: { sortOrder: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });
 
   return (

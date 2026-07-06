@@ -13,9 +13,10 @@ export default async function InterestingPage() {
   }
 
   // Материалы лежат в БД (модель Resource) — раньше были статичным списком.
-  // sortOrder задаёт порядок: меньше — выше.
+  // sortOrder задаёт порядок: меньше — выше. При равном sortOrder порядок
+  // добивается по id — иначе Postgres волен возвращать «ничьи» как попало.
   const resources = await prisma.resource.findMany({
-    orderBy: { sortOrder: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });
 
   return (
