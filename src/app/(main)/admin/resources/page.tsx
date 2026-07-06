@@ -31,12 +31,17 @@ export default async function AdminResourcesPage() {
           <p className="mb-6 text-center text-neutral-500">
             Материалы, которые ученики видят на странице «Интересное».
           </p>
-          <Button variant="secondary" asChild>
-            <Link href="/admin/resources/new">
-              <Plus className="mr-2 h-5 w-5" />
-              Добавить материал
-            </Link>
-          </Button>
+          <div className="flex items-center gap-x-2">
+            <Button variant="secondary" asChild>
+              <Link href="/admin/resources/new">
+                <Plus className="mr-2 h-5 w-5" />
+                Добавить материал
+              </Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link href="/admin/activity">Активность учеников</Link>
+            </Button>
+          </div>
         </div>
 
         {resources.length === 0 ? (

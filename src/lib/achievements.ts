@@ -11,8 +11,6 @@ export const ACHIEVEMENT_CODES = {
   LESSONS_15: "lessons_15",
   LEVEL_3: "level_3",
   LEVEL_6: "level_6",
-  FIRST_PURCHASE: "first_purchase",
-  FULL_OUTFIT: "full_outfit",
   SCRATCH_DONE: "scratch_done",
   HTML_DONE: "html_done",
   JS_DONE: "js_done",
@@ -99,22 +97,6 @@ const REGISTRY: Record<AchievementCode, AchievementDefinition> = {
     icon: null,
     targetValue: 6,
     rewardCurrency: 200,
-  },
-  [ACHIEVEMENT_CODES.FIRST_PURCHASE]: {
-    code: ACHIEVEMENT_CODES.FIRST_PURCHASE,
-    title: "Первый артефакт",
-    description: "Купил предмет в лавке.",
-    icon: null,
-    targetValue: 1,
-    rewardCurrency: 25,
-  },
-  [ACHIEVEMENT_CODES.FULL_OUTFIT]: {
-    code: ACHIEVEMENT_CODES.FULL_OUTFIT,
-    title: "Полный облик",
-    description: "Снегирь экипирован во все слоты.",
-    icon: null,
-    targetValue: 1,
-    rewardCurrency: 100,
   },
   // Категорийные: разблокируются после прохождения ВСЕХ уроков категории.
   // Целевые значения = плановый размер курса (Scratch 32 + HTML 8 + JS 16).
