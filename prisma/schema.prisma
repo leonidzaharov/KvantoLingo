@@ -51,6 +51,7 @@ model Lesson {
   title      String
   content    String   // JSON-строка с вопросами и заданиями
   xpReward   Int      @default(10)
+  coinReward Int      @default(5) // монет за первое ПОЛНОЕ прохождение (тратятся офлайн у наставника)
   sortOrder  Int      @default(0)
 
   category Category             @relation(fields: [categoryId], references: [id])

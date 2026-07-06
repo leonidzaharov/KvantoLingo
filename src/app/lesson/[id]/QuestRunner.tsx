@@ -154,6 +154,7 @@ export function QuestRunner({
 
           <div className="flex w-full items-center gap-x-4">
             <ResultCard variant="points" value={result.gainedXp} />
+            <ResultCard variant="coins" value={result.gainedCoins} />
             <ResultCard variant="hearts" value={hearts} />
           </div>
 

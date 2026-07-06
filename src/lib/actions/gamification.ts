@@ -15,6 +15,8 @@ import { calculateLevel, countQuestions } from "@/lib/gamification-logic";
 
 export type CompleteLessonResult = {
   gainedXp: number;
+  /** Монет начислено этим прохождением (0 при повторе). Тратятся офлайн. */
+  gainedCoins: number;
   totalXp: number;
   level: number;
   leveledUp: boolean;
@@ -52,9 +54,10 @@ export async function completeLesson(
   const now = new Date();
   const oldLevel = user.level;
 
-  // XP начисляем только при первом прохождении — иначе бесконечный фарм.
-  // lastActiveDate обновляем всегда: ученик-таки занимался сегодня.
+  // XP и монеты начисляем только при первом прохождении — иначе бесконечный
+  // фарм. lastActiveDate обновляем всегда: ученик-таки занимался сегодня.
   const gainedXp = firstCompletion ? lesson.xpReward : 0;
+  const gainedCoins = firstCompletion ? lesson.coinReward : 0;
   const newTotalXp = user.totalXp + gainedXp;
   const newLevel = calculateLevel(newTotalXp);
 
@@ -84,6 +87,9 @@ export async function completeLesson(
       data: {
         totalXp: newTotalXp,
         level: newLevel,
+        // increment, а не абсолютное значение: ачивки ниже тоже начисляют
+        // монеты инкрементом — так никто ничьё начисление не затрёт.
+        currency: { increment: gainedCoins },
         lastActiveDate: now,
       },
     }),
@@ -161,6 +167,7 @@ export async function completeLesson(
 
   return {
     gainedXp,
+    gainedCoins,
     totalXp: updated.totalXp,
     level: updated.level,
     leveledUp: updated.level > oldLevel,

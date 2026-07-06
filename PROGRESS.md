@@ -200,6 +200,16 @@ devDependencies (Next тянет её сам как optional) и мёртвый 
   «Интересное»: совет 1 / Scratch 2 / видео 3 (разово за материал → нужна кнопка
   «Изучил» + таблица UserResource + поле coinReward у Resource в админке).
   Очередь: монеты за урок → «Изучил» в Интересном → админка уроков.
+- ✅ **Монеты за урок (2026-07-06, tsc=0/lint=0/19 тестов, live /learn 200):**
+  поле **`Lesson.coinReward`** (default 5, миграция `add_lesson_coin_reward`;
+  все 5 уроков в БД получили 5). Начисление в `completeLesson` рядом с XP —
+  только за первое полное прохождение, повтор = 0; в user.update монеты идут
+  `increment` (не абсолютным значением), чтобы не затирать начисления ачивок.
+  `CompleteLessonResult.gainedCoins` → на экране результата урока третья
+  карточка «Монеты» (`result-card.tsx` переписан на мапу VARIANT_META:
+  points/coins/hearts). Счётчик монет (Coins, amber) добавлен в `user-progress`
+  на /learn (select currency). Категории в живой БД: id 8=HTML, 9=JS, 10=Scratch.
+  🔻 Проставить осмысленные coinReward per-урок можно будет в админке уроков.
 - ✅ **Лидерборд (2026-06-23, tsc=0/lint=0, live 200):** `src/app/(main)/leaderboard/page.tsx`
   — топ-10, аватар-инициалы, ранг (top-3 цветной), подсветка текущего юзера «(ты)».
   **Вкладки XP / стрик** через URL-параметр `?sort=xp|streak` (остаётся серверным
