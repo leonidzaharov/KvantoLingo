@@ -160,6 +160,26 @@ devDependencies (Next тянет её сам как optional) и мёртвый 
   `interesting/page.tsx` читает из БД (`findMany orderBy sortOrder`) + пустое состояние;
   `resources.ts` удалён, типы берутся из Prisma-клиента. 🔻 Следующий шаг — админка для
   добавления/правки материалов (и уроков) через UI.
+- ✅ **Админка «Интересного» (2026-07-06, tsc=0/lint=0/26 тестов, live-прогон доступов):**
+  - Схема: поле **`User.isAdmin`** (миграция `20260706190139_add_user_is_admin`,
+    сгенерирована `migrate diff --from-config-datasource --to-schema` + `migrate deploy` —
+    тот же обход shadow-БД, что и для Resource).
+  - Аккаунт наставника: `create-user.mjs` научен флагу `--admin`; создан юзер
+    **«Наставник»** (id `5c68d188-2ef9-48b9-bf28-849aee0410af`), PIN сообщён владельцу.
+  - Guard'ы в `server-guard.ts`: `requireAdmin()` (для actions, флаг из БД на каждый
+    вызов — не из JWT) и `requireAdminOr404()` (для страниц: ученикам 404).
+  - UI: `src/app/(main)/admin/resources/` — список (`page.tsx` + `delete-button.tsx`
+    с confirm), создание `new/`, правка `[id]/`; общая форма `resource-form.tsx`
+    (useActionState, поля зависят от типа). `/admin` добавлен в protected
+    (auth.config), пункт «Админка» (Wrench) в сайдбаре виден только админу.
+  - Actions `src/lib/actions/resources.ts`: `saveResource` (create/update одной формой)
+    + `deleteResource`, оба под `requireAdmin`, `revalidatePath('/interesting')`.
+  - Нормализация ссылок в чистом `src/lib/resource-input.ts` (+13 vitest-тестов):
+    YouTube (watch/youtu.be/shorts/embed → 11-символьный ID), Scratch (URL → номер
+    проекта), article — только https, note — обязателен текст. Ошибки — русские фразы.
+  - Live-прогон: аноним → 307 на логин; ученик → 404 и без пункта в сайдбаре;
+    наставник → 200, список/формы рендерятся, несуществующий id → 404.
+  - 🔻 Дальше по админке: управление уроками (create/edit через UI).
 - ✅ **Лидерборд (2026-06-23, tsc=0/lint=0, live 200):** `src/app/(main)/leaderboard/page.tsx`
   — топ-10, аватар-инициалы, ранг (top-3 цветной), подсветка текущего юзера «(ты)».
   **Вкладки XP / стрик** через URL-параметр `?sort=xp|streak` (остаётся серверным

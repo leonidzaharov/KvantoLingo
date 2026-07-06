@@ -9,6 +9,7 @@ import {
   Sparkles,
   Trophy,
   User,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ const ICONS: Record<string, LucideIcon> = {
   trophy: Trophy,
   profile: User,
   interesting: Sparkles,
+  admin: Wrench,
 };
 
 type SidebarItemProps = {

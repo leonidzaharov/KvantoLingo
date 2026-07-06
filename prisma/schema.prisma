@@ -19,10 +19,12 @@ datasource db {
 // ============================================================
 
 /// Профиль ученика. Аутентификация через 4-значный PIN-код.
+/// isAdmin = наставник: видит админку (/admin) и правит контент.
 model User {
   id             String    @id @default(uuid())
   name           String
   pinHash        String
+  isAdmin        Boolean   @default(false)
   totalXp        Int       @default(0)
   level          Int       @default(1)
   currency       Int       @default(0)

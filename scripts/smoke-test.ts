@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 // Быстрая проверка: Prisma-клиент соединяется с Supabase, видит перенесённые
 // данные, базовые join'ы работают. PinHash не печатаем.
 import "dotenv/config";

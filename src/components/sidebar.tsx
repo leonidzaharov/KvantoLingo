@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 
 import { auth, signOut } from "@/auth";
+import { prisma } from "@/lib/db";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +17,18 @@ type SidebarProps = {
 export const Sidebar = async ({ className }: SidebarProps) => {
   const session = await auth();
   const name = session?.user?.name ?? "Ученик";
+
+  // Пункт «Админка» видит только наставник. Флаг читаем из БД, а не из
+  // JWT, чтобы права действовали сразу (сессия живёт 60 минут).
+  const userId = session?.user?.id;
+  const isAdmin = userId
+    ? (
+        await prisma.user.findUnique({
+          where: { id: userId },
+          select: { isAdmin: true },
+        })
+      )?.isAdmin ?? false
+    : false;
 
   return (
     <div
@@ -42,6 +55,9 @@ export const Sidebar = async ({ className }: SidebarProps) => {
         <SidebarItem label="Интересное" href="/interesting" icon="interesting" />
         <SidebarItem label="Достижения" href="/achievements" icon="trophy" />
         <SidebarItem label="Профиль" href="/profile" icon="profile" />
+        {isAdmin && (
+          <SidebarItem label="Админка" href="/admin/resources" icon="admin" />
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-x-2 p-4">

@@ -4,6 +4,7 @@
 //
 // Запуск:
 //   npm run create-user -- --name="Маша Петрова" --pin=1234
+//   npm run create-user -- --name="Наставник" --pin=0000 --admin   (аккаунт с правами админки)
 //
 // Скрипт:
 //   1. Валидирует имя (1..64 символа) и PIN (ровно 4 цифры).
@@ -71,14 +72,17 @@ try {
 
   const id = randomUUID();
   const pinHash = await bcrypt.hash(pin, 10);
+  const isAdmin = args.admin === true;
 
   await client.query(
-    `INSERT INTO "User" (id, name, "pinHash", "totalXp", level, currency, "streakDays", "lastActiveDate", "createdAt")
-     VALUES ($1, $2, $3, 0, 1, 0, 0, NULL, NOW())`,
-    [id, name, pinHash],
+    `INSERT INTO "User" (id, name, "pinHash", "isAdmin", "totalXp", level, currency, "streakDays", "lastActiveDate", "createdAt")
+     VALUES ($1, $2, $3, $4, 0, 1, 0, 0, NULL, NOW())`,
+    [id, name, pinHash, isAdmin],
   );
 
-  console.log(`✓ Создан пользователь «${name}» (id=${id})`);
+  console.log(
+    `✓ Создан пользователь «${name}» (id=${id})${isAdmin ? " — с правами админа" : ""}`,
+  );
 } finally {
   await client.end();
 }
