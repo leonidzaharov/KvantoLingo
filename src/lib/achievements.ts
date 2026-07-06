@@ -11,8 +11,6 @@ export const ACHIEVEMENT_CODES = {
   LESSONS_15: "lessons_15",
   LEVEL_3: "level_3",
   LEVEL_6: "level_6",
-  STREAK_3: "streak_3",
-  STREAK_7: "streak_7",
   FIRST_PURCHASE: "first_purchase",
   FULL_OUTFIT: "full_outfit",
   SCRATCH_DONE: "scratch_done",
@@ -101,22 +99,6 @@ const REGISTRY: Record<AchievementCode, AchievementDefinition> = {
     icon: null,
     targetValue: 6,
     rewardCurrency: 200,
-  },
-  [ACHIEVEMENT_CODES.STREAK_3]: {
-    code: ACHIEVEMENT_CODES.STREAK_3,
-    title: "Утренняя звезда",
-    description: "Три дня подряд в Цитадели.",
-    icon: null,
-    targetValue: 3,
-    rewardCurrency: 50,
-  },
-  [ACHIEVEMENT_CODES.STREAK_7]: {
-    code: ACHIEVEMENT_CODES.STREAK_7,
-    title: "Неугасимое пламя",
-    description: "Семь дней подряд в Цитадели.",
-    icon: null,
-    targetValue: 7,
-    rewardCurrency: 150,
   },
   [ACHIEVEMENT_CODES.FIRST_PURCHASE]: {
     code: ACHIEVEMENT_CODES.FIRST_PURCHASE,
@@ -276,11 +258,8 @@ export function bumpAchievement(
 /**
  * Устанавливает прогресс в `value`, но никогда не уменьшает уже накопленное
  * (берёт max). Подходит для метрик с прыжками и откатами: уровень,
- * текущий стрик, количество пройденных уроков (если считаем от снапшота).
- *
- * Пример: стрик упал с 5 до 0 — STREAK_3 уже разблокирован, дальнейшие
- * вызовы не должны его «откатить». Также защищает от того, чтобы
- * новое значение случайно занизило прогресс.
+ * количество пройденных уроков (если считаем от снапшота). Защищает от
+ * того, чтобы новое значение случайно занизило накопленный прогресс.
  */
 export function setAchievementProgress(
   userId: string,

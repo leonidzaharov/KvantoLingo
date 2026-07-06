@@ -15,18 +15,6 @@ class RateLimitedError extends CredentialsSignin {
   code = "rate_limited";
 }
 
-// Кол-во полных календарных дней между двумя датами (UTC),
-// чтобы расчёт стрика не зависел от часового пояса сервера.
-function fullDaysBetween(from: Date, to: Date): number {
-  const fromDay = Date.UTC(
-    from.getUTCFullYear(),
-    from.getUTCMonth(),
-    from.getUTCDate(),
-  );
-  const toDay = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
-  return Math.floor((toDay - fromDay) / 86_400_000);
-}
-
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
   providers: [
@@ -84,32 +72,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        // ── Обновляем streak при каждом успешном логине ──
-        // Если ученик заходил вчера — инкремент, сегодня — без изменений,
-        // пропуск >1 дня — сброс на 1 (сегодняшний вход).
-        const now = new Date();
-        let newStreak: number;
-        if (user.lastActiveDate === null) {
-          newStreak = 1;
-        } else {
-          const diff = fullDaysBetween(user.lastActiveDate, now);
-          if (diff === 0) {
-            newStreak = user.streakDays; // уже заходил сегодня
-          } else if (diff === 1) {
-            newStreak = user.streakDays + 1; // заходил вчера — продолжаем
-          } else {
-            newStreak = 1; // пропуск — новый стрик с сегодня
-          }
-        }
-
+        // Отмечаем «последний раз заходил» — пригодится наставнику, чтобы
+        // видеть, кто давно не появлялся. (Стрик убран сознательно: при
+        // занятиях 2–3 раза в неделю серия дней всегда рвалась и только
+        // демотивировала. Опора мотивации — XP/уровни/ачивки/монеты.)
         // Best-effort: если обновление упадёт, логин всё равно пройдёт.
         try {
           await prisma.user.update({
             where: { id: userId },
-            data: {
-              streakDays: newStreak,
-              lastActiveDate: now,
-            },
+            data: { lastActiveDate: new Date() },
           });
         } catch {
           /* noop */

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Flame } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,7 +11,6 @@ export type ProfileLite = {
   id: string;
   name: string;
   level: number;
-  streakDays: number;
 };
 
 type Props = {
@@ -120,12 +118,8 @@ export function ProfileSelector({ profiles }: Props) {
                 <div className="w-full truncate font-bold text-neutral-700">
                   {p.name}
                 </div>
-                <div className="flex items-center gap-x-2 text-xs font-bold text-neutral-400">
-                  <span>Ур. {p.level}</span>
-                  <span className="flex items-center gap-x-0.5 text-orange-500">
-                    <Flame className="h-3 w-3 fill-orange-500" />
-                    {p.streakDays}
-                  </span>
+                <div className="text-xs font-bold text-neutral-400">
+                  Ур. {p.level}
                 </div>
               </button>
             );

@@ -1,7 +1,6 @@
 import {
   BookOpen,
   Crown,
-  Flame,
   LogOut,
   Medal,
   Star,
@@ -38,7 +37,6 @@ export default async function ProfilePage() {
         totalXp: true,
         level: true,
         currency: true,
-        streakDays: true,
         createdAt: true,
       },
     }),
@@ -72,12 +70,6 @@ export default async function ProfilePage() {
 
       <h2 className="mb-3 text-xl font-bold text-neutral-700">Статистика</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <StatCard
-          icon={Flame}
-          iconClass="text-orange-500 fill-orange-400"
-          value={user.streakDays}
-          label="Дней подряд"
-        />
         <StatCard
           icon={Zap}
           iconClass="text-yellow-500 fill-yellow-400"

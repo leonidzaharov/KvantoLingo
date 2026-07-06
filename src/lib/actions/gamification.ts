@@ -11,18 +11,13 @@ import {
   type UnlockedAchievement,
 } from "@/lib/achievements";
 import { IdSchema, parse, requireUser } from "@/lib/server-guard";
-import {
-  calculateLevel,
-  countQuestions,
-  nextStreak,
-} from "@/lib/gamification-logic";
+import { calculateLevel, countQuestions } from "@/lib/gamification-logic";
 
 export type CompleteLessonResult = {
   gainedXp: number;
   totalXp: number;
   level: number;
   leveledUp: boolean;
-  streakDays: number;
   lastActiveDate: Date;
   /** true, если урок засчитан впервые (XP начислен), false — повтор. */
   firstCompletion: boolean;
@@ -58,12 +53,10 @@ export async function completeLesson(
   const oldLevel = user.level;
 
   // XP начисляем только при первом прохождении — иначе бесконечный фарм.
-  // Стрик и lastActiveDate обновляем всегда: ученик-таки занимался сегодня.
+  // lastActiveDate обновляем всегда: ученик-таки занимался сегодня.
   const gainedXp = firstCompletion ? lesson.xpReward : 0;
   const newTotalXp = user.totalXp + gainedXp;
   const newLevel = calculateLevel(newTotalXp);
-
-  const newStreak = nextStreak(user.lastActiveDate, user.streakDays, now);
 
   const totalQuestions = countQuestions(lesson.content);
 
@@ -91,7 +84,6 @@ export async function completeLesson(
       data: {
         totalXp: newTotalXp,
         level: newLevel,
-        streakDays: newStreak,
         lastActiveDate: now,
       },
     }),
@@ -146,21 +138,6 @@ export async function completeLesson(
       updated.level,
     ),
   );
-  collect(
-    await setAchievementProgress(
-      userId,
-      ACHIEVEMENT_CODES.STREAK_3,
-      updated.streakDays,
-    ),
-  );
-  collect(
-    await setAchievementProgress(
-      userId,
-      ACHIEVEMENT_CODES.STREAK_7,
-      updated.streakDays,
-    ),
-  );
-
   // Категорийные ачивки: считаем уроки конкретной категории и ставим
   // как snapshot (set, а не bump) — повторное прохождение не сдвинет счётчик,
   // удаление урока из каталога мягко уменьшит локальный счёт, но накопленный
@@ -187,7 +164,6 @@ export async function completeLesson(
     totalXp: updated.totalXp,
     level: updated.level,
     leveledUp: updated.level > oldLevel,
-    streakDays: updated.streakDays,
     lastActiveDate: updated.lastActiveDate ?? now,
     firstCompletion,
     unlockedAchievements,

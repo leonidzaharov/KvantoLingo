@@ -213,7 +213,6 @@ async function main(): Promise<void> {
       totalXp: 150,
       level: 2,
       currency: 50,
-      streakDays: 3,
     },
   });
   console.log(`👤 Пользователь: ${user.name} (id=${user.id}, PIN=1234)`);

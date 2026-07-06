@@ -16,7 +16,6 @@ export default async function HomePage() {
       id: true,
       name: true,
       level: true,
-      streakDays: true,
     },
   });
 

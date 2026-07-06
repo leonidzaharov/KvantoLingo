@@ -28,8 +28,7 @@ model User {
   totalXp        Int       @default(0)
   level          Int       @default(1)
   currency       Int       @default(0)
-  streakDays     Int       @default(0)
-  lastActiveDate DateTime?
+  lastActiveDate DateTime? // последний вход/активность — «кто давно не появлялся»
   createdAt      DateTime  @default(now())
 
   // Связи

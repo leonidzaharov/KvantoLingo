@@ -33,7 +33,7 @@ export default async function LearnPage() {
   const [user, category] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, totalXp: true, streakDays: true },
+      select: { name: true, totalXp: true },
     }),
     prisma.category.findUnique({
       where: { id: activeCourseId },
@@ -95,7 +95,6 @@ export default async function LearnPage() {
           courseTitle={category.name}
           courseIcon={category.icon}
           points={user.totalXp}
-          streakDays={user.streakDays}
           hearts={PLACEHOLDER_HEARTS}
         />
       </StickyWrapper>

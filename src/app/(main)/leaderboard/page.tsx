@@ -1,5 +1,4 @@
-import { Flame, Medal, Zap, type LucideIcon } from "lucide-react";
-import Link from "next/link";
+import { Medal } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
@@ -13,30 +12,17 @@ function initials(name: string): string {
   return (a + b).toUpperCase();
 }
 
-type SortKey = "xp" | "streak";
-
-export default async function LeaderboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ sort?: string }>;
-}) {
+export default async function LeaderboardPage() {
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/");
   }
   const userId = session.user.id;
 
-  const { sort } = await searchParams;
-  const sortKey: SortKey = sort === "streak" ? "streak" : "xp";
-
-  // Сортировку выбираем по вкладке. Тай-брейки: для стрика — по XP, затем дате;
-  // для XP — по дате регистрации (кто раньше дошёл, тот выше).
+  // Топ по XP; тай-брейк — дата регистрации (кто раньше дошёл, тот выше).
   const users = await prisma.user.findMany({
-    orderBy:
-      sortKey === "streak"
-        ? [{ streakDays: "desc" }, { totalXp: "desc" }, { createdAt: "asc" }]
-        : [{ totalXp: "desc" }, { createdAt: "asc" }],
-    select: { id: true, name: true, totalXp: true, streakDays: true },
+    orderBy: [{ totalXp: "desc" }, { createdAt: "asc" }],
+    select: { id: true, name: true, totalXp: true },
     take: 10,
   });
 
@@ -55,22 +41,6 @@ export default async function LeaderboardPage({
         </p>
 
         <div className="w-full max-w-[600px]">
-          {/* Сегментированный переключатель — обычные ссылки, RSC-навигация */}
-          <div className="mb-5 flex gap-1 rounded-xl border-2 p-1">
-            <TabLink
-              active={sortKey === "xp"}
-              href="/leaderboard?sort=xp"
-              label="По XP"
-              icon={Zap}
-            />
-            <TabLink
-              active={sortKey === "streak"}
-              href="/leaderboard?sort=streak"
-              label="По стрику"
-              icon={Flame}
-            />
-          </div>
-
           {users.map((u, i) => {
             const isMe = u.id === userId;
             const rankColor =
@@ -109,48 +79,14 @@ export default async function LeaderboardPage({
                   )}
                 </p>
 
-                {sortKey === "streak" ? (
-                  <p className="flex shrink-0 items-center gap-x-1 font-bold text-orange-500">
-                    <Flame className="h-4 w-4 fill-orange-400" />
-                    {u.streakDays}
-                  </p>
-                ) : (
-                  <p className="shrink-0 font-bold text-neutral-400">
-                    {u.totalXp} XP
-                  </p>
-                )}
+                <p className="shrink-0 font-bold text-neutral-400">
+                  {u.totalXp} XP
+                </p>
               </div>
             );
           })}
         </div>
       </div>
     </div>
-  );
-}
-
-function TabLink({
-  active,
-  href,
-  label,
-  icon: Icon,
-}: {
-  active: boolean;
-  href: string;
-  label: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "flex flex-1 items-center justify-center gap-x-1.5 rounded-lg py-2 text-sm font-bold transition",
-        active
-          ? "bg-green-500 text-white"
-          : "text-neutral-500 hover:bg-neutral-100",
-      )}
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-    </Link>
   );
 }
