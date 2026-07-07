@@ -18,6 +18,23 @@ datasource db {
 // ДОМЕН 1: Пользователи и учебный контент
 // ============================================================
 
+/// Направление обучения — первый шаг выбора на экране входа.
+enum GroupTrack {
+  intro // вводный
+  advanced // углублённый
+  project // проектный
+}
+
+/// Учебная группа (например «it-01»). Экран входа: направление → группа
+/// → ученик. Управляется наставником в /admin/groups.
+model Group {
+  id    Int        @id @default(autoincrement())
+  name  String     @unique
+  track GroupTrack
+
+  students User[]
+}
+
 /// Профиль ученика. Аутентификация через 4-значный PIN-код.
 /// isAdmin = наставник: видит админку (/admin) и правит контент.
 model User {
@@ -25,6 +42,7 @@ model User {
   name           String
   pinHash        String
   isAdmin        Boolean   @default(false)
+  groupId        Int? // null = «без группы» (новенькие и наставники)
   totalXp        Int       @default(0)
   level          Int       @default(1)
   currency       Int       @default(0)
@@ -32,6 +50,7 @@ model User {
   createdAt      DateTime  @default(now())
 
   // Связи
+  group            Group?               @relation(fields: [groupId], references: [id])
   achievements     UserAchievement[]
   lessonProgress   UserLessonProgress[]
   studiedResources UserResource[]

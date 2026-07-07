@@ -3,8 +3,10 @@
 // Ротация PIN-кода для пользователя в Supabase.
 //
 // Запуск:
-//   npm run rotate-pin -- --user-id=<uuid> --pin=<4-цифры>
-//   npm run rotate-pin -- --name="Иван Иванов" --pin=<4-цифры>
+//   npm run rotate-pin -- --user-id=<uuid> --pin=<PIN>
+//   npm run rotate-pin -- --name="Иван Иванов" --pin=<PIN>
+//
+// PIN: ученик — ровно 4 цифры, админ — 8..10 цифр (не подобрать перебором).
 //
 // Скрипт:
 //   1. Находит пользователя по id ИЛИ по name (что задано первым).
@@ -27,9 +29,14 @@ function parseArgs() {
 }
 
 const args = parseArgs();
+// Формат проверяем в два шага: тут — что это вообще цифры разумной длины,
+// а после загрузки пользователя — что длина соответствует роли (4 у ученика,
+// 8–10 у админа): роль до запроса в БД неизвестна.
 const pin = args.pin;
-if (!pin || !/^\d{4}$/.test(pin)) {
-  console.error("✗ --pin обязателен и должен быть ровно 4 цифры");
+if (!pin || !/^\d{4}$|^\d{8,10}$/.test(pin)) {
+  console.error(
+    "✗ --pin обязателен: 4 цифры для ученика, 8–10 цифр для админа",
+  );
   process.exit(2);
 }
 if (!args["user-id"] && !args.name) {
@@ -50,13 +57,13 @@ try {
   let user;
   if (args["user-id"]) {
     const res = await client.query(
-      `SELECT id, name FROM "User" WHERE id = $1`,
+      `SELECT id, name, "isAdmin" FROM "User" WHERE id = $1`,
       [args["user-id"]],
     );
     user = res.rows[0];
   } else {
     const res = await client.query(
-      `SELECT id, name FROM "User" WHERE name = $1`,
+      `SELECT id, name, "isAdmin" FROM "User" WHERE name = $1`,
       [args.name],
     );
     if (res.rows.length > 1) {
@@ -70,6 +77,19 @@ try {
 
   if (!user) {
     console.error("✗ пользователь не найден");
+    process.exit(2);
+  }
+
+  if (user.isAdmin && !/^\d{8,10}$/.test(pin)) {
+    console.error(
+      `✗ «${user.name}» — админ, его PIN должен быть 8–10 цифр`,
+    );
+    process.exit(2);
+  }
+  if (!user.isAdmin && !/^\d{4}$/.test(pin)) {
+    console.error(
+      `✗ «${user.name}» — ученик, его PIN должен быть ровно 4 цифры`,
+    );
     process.exit(2);
   }
 

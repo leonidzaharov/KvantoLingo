@@ -22,37 +22,57 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       name: "PIN Code",
       credentials: {
         userId: { label: "User ID", type: "text" },
+        loginName: { label: "Имя", type: "text" },
         pin: { label: "PIN", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.userId || !credentials?.pin) {
+        const pin =
+          typeof credentials?.pin === "string" ? credentials.pin : "";
+        if (!pin) {
           return null;
         }
-        const userId = credentials.userId as string;
-        const pin = credentials.pin as string;
 
-        // Rate-limit: 5 неудачных за 15 минут блокируют дальнейшие попытки
-        // до окна, даже если PIN внезапно правильный. Защищает 4-значный
-        // PIN от полного перебора (10000 комбинаций без лимита — секунды).
-        // Считаем ДО bcrypt.compare — иначе тратим ~100мс впустую.
+        // Два пути входа. Ученик выбирает профиль на главной — приходит
+        // userId. Наставник вводит имя на скрытой /mentor — приходит
+        // loginName. По имени пускаем ТОЛЬКО админов: профили наставников
+        // с главной убраны, и /mentor не должна стать чёрным ходом для
+        // входа в ученические аккаунты по имени.
+        let user = null;
+        if (typeof credentials?.userId === "string" && credentials.userId) {
+          user = await prisma.user.findUnique({
+            where: { id: credentials.userId },
+          });
+        } else if (
+          typeof credentials?.loginName === "string" &&
+          credentials.loginName.trim()
+        ) {
+          // findFirst: имя в схеме не уникально. Дубликаты имён среди
+          // админов create-user не допускает без --force.
+          user = await prisma.user.findFirst({
+            where: { name: credentials.loginName.trim(), isAdmin: true },
+          });
+        }
+        if (!user) {
+          // Несуществующий userId/имя намеренно не логируем: иначе атакующий
+          // случайными значениями раздует таблицу. Реальный перебор PIN и так
+          // упирается в лимит ниже — для уже валидных юзеров.
+          return null;
+        }
+
+        // Rate-limit: 5 неудачных за 5 минут блокируют дальнейшие попытки
+        // до конца окна, даже если PIN внезапно правильный. Защищает
+        // 4-значный PIN от полного перебора (10000 комбинаций без лимита —
+        // секунды). Считаем ДО bcrypt.compare — иначе тратим ~100мс впустую.
         const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
         const recentFailures = await prisma.loginAttempt.count({
           where: {
-            userId,
+            userId: user.id,
             succeeded: false,
             attemptedAt: { gte: windowStart },
           },
         });
         if (recentFailures >= RATE_LIMIT_MAX_FAILURES) {
           throw new RateLimitedError();
-        }
-
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user) {
-          // Несуществующего userId намеренно не логируем: иначе атакующий
-          // случайными id раздует таблицу. Реальный перебор PIN и так
-          // упирается в лимит выше — для уже валидных юзеров.
-          return null;
         }
 
         const isPasswordValid = await bcrypt.compare(pin, user.pinHash);
@@ -62,7 +82,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // личность. Без записи в худшем случае пропадёт один rate-limit-tick.
         try {
           await prisma.loginAttempt.create({
-            data: { userId, succeeded: isPasswordValid },
+            data: { userId: user.id, succeeded: isPasswordValid },
           });
         } catch {
           /* noop */
@@ -79,7 +99,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Best-effort: если обновление упадёт, логин всё равно пройдёт.
         try {
           await prisma.user.update({
-            where: { id: userId },
+            where: { id: user.id },
             data: { lastActiveDate: new Date() },
           });
         } catch {

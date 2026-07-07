@@ -4,15 +4,16 @@
 //
 // Запуск:
 //   npm run create-user -- --name="Маша Петрова" --pin=1234
-//   npm run create-user -- --name="Наставник" --pin=0000 --admin   (аккаунт с правами админки)
+//   npm run create-user -- --name="Наставник" --pin=8712093465 --admin   (аккаунт с правами админки)
 //
 // Скрипт:
-//   1. Валидирует имя (1..64 символа) и PIN (ровно 4 цифры).
+//   1. Валидирует имя (1..64 символа) и PIN: ученик — ровно 4 цифры,
+//      админ — 8..10 цифр (длинный PIN не подобрать перебором).
 //   2. Хеширует PIN через bcrypt (cost = 10, как authorize() в src/auth.ts).
 //   3. Проверяет, нет ли уже пользователя с таким именем — если есть,
 //      предупреждает и просит подтверждения (--force).
 //   4. Создаёт запись с дефолтами: totalXp=0, level=1, currency=0,
-//      streakDays=0, lastActiveDate=null.
+//      lastActiveDate=null.
 //   5. Печатает выданный id (uuid) — пригодится для будущей ротации PIN.
 //   6. Никогда не печатает сам PIN или хеш.
 // ============================================================
@@ -43,8 +44,13 @@ if (name.length > 64) {
   console.error("✗ имя длиннее 64 символов — слишком длинно");
   process.exit(2);
 }
-if (!/^\d{4}$/.test(pin)) {
-  console.error("✗ --pin должен быть ровно 4 цифры");
+const isAdmin = args.admin === true;
+if (isAdmin ? !/^\d{8,10}$/.test(pin) : !/^\d{4}$/.test(pin)) {
+  console.error(
+    isAdmin
+      ? "✗ --pin для админа должен быть 8–10 цифр"
+      : "✗ --pin должен быть ровно 4 цифры",
+  );
   process.exit(2);
 }
 
@@ -72,11 +78,10 @@ try {
 
   const id = randomUUID();
   const pinHash = await bcrypt.hash(pin, 10);
-  const isAdmin = args.admin === true;
 
   await client.query(
-    `INSERT INTO "User" (id, name, "pinHash", "isAdmin", "totalXp", level, currency, "streakDays", "lastActiveDate", "createdAt")
-     VALUES ($1, $2, $3, $4, 0, 1, 0, 0, NULL, NOW())`,
+    `INSERT INTO "User" (id, name, "pinHash", "isAdmin", "totalXp", level, currency, "lastActiveDate", "createdAt")
+     VALUES ($1, $2, $3, $4, 0, 1, 0, NULL, NOW())`,
     [id, name, pinHash, isAdmin],
   );
 

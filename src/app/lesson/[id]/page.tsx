@@ -2,8 +2,9 @@ import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
+import { parseLessonContent } from "@/lib/lesson-content";
 
-import { QuestRunner, type LessonContent } from "./QuestRunner";
+import { QuestRunner } from "./QuestRunner";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -30,15 +31,9 @@ export default async function LessonPage({ params }: PageProps) {
     notFound();
   }
 
-  let parsed: LessonContent;
-  try {
-    parsed = JSON.parse(lesson.content) as LessonContent;
-  } catch {
-    parsed = { questions: [] };
-  }
-  if (!Array.isArray(parsed.questions)) {
-    parsed = { questions: [] };
-  }
+  // Разбор и валидация контента (теория + задания) — в общем модуле,
+  // тем же zod-описанием, каким админка его сохраняет.
+  const parsed = parseLessonContent(lesson.content);
 
   // Первое попадание на урок создаёт строку прогресса → на /learn урок
   // становится «текущим». alreadyCompleted различает зачёт и тренировку.

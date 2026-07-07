@@ -56,7 +56,7 @@ export const Sidebar = async ({ className }: SidebarProps) => {
         <SidebarItem label="Достижения" href="/achievements" icon="trophy" />
         <SidebarItem label="Профиль" href="/profile" icon="profile" />
         {isAdmin && (
-          <SidebarItem label="Админка" href="/admin/resources" icon="admin" />
+          <SidebarItem label="Админка" href="/admin/lessons" icon="admin" />
         )}
       </div>
 

@@ -21,6 +21,7 @@ export default async function LeaderboardPage() {
 
   // Топ по XP; тай-брейк — дата регистрации (кто раньше дошёл, тот выше).
   const users = await prisma.user.findMany({
+    where: { isAdmin: false }, // наставник не соревнуется и не светится
     orderBy: [{ totalXp: "desc" }, { createdAt: "asc" }],
     select: { id: true, name: true, totalXp: true },
     take: 10,

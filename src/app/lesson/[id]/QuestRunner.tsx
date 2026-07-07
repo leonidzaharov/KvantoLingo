@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import confetti from "canvas-confetti";
 
 import { AchievementToastStack } from "@/components/AchievementToast";
+import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import type { UnlockedAchievement } from "@/lib/achievements";
 import {
@@ -12,21 +13,14 @@ import {
   recordCorrectAnswer,
   type CompleteLessonResult,
 } from "@/lib/actions/gamification";
+import { questionKind, type LessonContent } from "@/lib/lesson-content";
+import { getPyodide, runPython } from "@/lib/pyodide-runner";
 
 import { Challenge } from "./challenge";
+import { CodeChallenge } from "./code-challenge";
 import { Footer } from "./footer";
 import { Header } from "./header";
 import { ResultCard } from "./result-card";
-
-export type LessonQuestion = {
-  prompt: string;
-  options: string[];
-  correctIndex: number;
-};
-
-export type LessonContent = {
-  questions: LessonQuestion[];
-};
 
 // Сердца — клиентские: в схеме поля нет (появится на этапе миграции). Сейчас
 // чисто визуальный счётчик, проигрыш урока при нуле НЕ блокируем.
@@ -63,7 +57,12 @@ export function QuestRunner({
 }: Props) {
   const questions = content.questions;
   const total = questions.length;
+  const hasTheory = content.theory.trim() !== "";
 
+  // Урок из двух частей: сначала теория (если есть), потом задания.
+  const [phase, setPhase] = useState<"theory" | "tasks">(
+    hasTheory ? "theory" : "tasks",
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | undefined>(
     undefined,
@@ -75,12 +74,34 @@ export function QuestRunner({
   const [toasts, setToasts] = useState<UnlockedAchievement[]>([]);
   const [isPending, startTransition] = useTransition();
 
+  // Код ученика по номерам заданий (сохраняется при «Повторить» и при
+  // возврате к заданию), вывод последнего запуска и флаг «выполняется».
+  const [codeByIndex, setCodeByIndex] = useState<Record<number, string>>({});
+  const [codeOutput, setCodeOutput] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+
+  // Если в уроке есть python-задания — начинаем греть Pyodide заранее,
+  // пока ученик читает теорию/отвечает на вопросы.
+  useEffect(() => {
+    if (questions.some((q) => questionKind(q) === "code")) {
+      void getPyodide().catch(() => {
+        /* покажем ошибку при реальном запуске */
+      });
+    }
+  }, [questions]);
+
   const dismissToast = useCallback((code: string) => {
     setToasts((prev) => prev.filter((t) => t.code !== code));
   }, []);
 
   const challenge = questions[activeIndex];
-  const percentage = total === 0 ? 100 : Math.round((completedCount / total) * 100);
+  const kind = challenge ? questionKind(challenge) : "choice";
+  const currentCode =
+    kind === "code" && challenge?.type === "code"
+      ? codeByIndex[activeIndex] ?? challenge.starterCode ?? ""
+      : "";
+  const percentage =
+    total === 0 ? 100 : Math.round((completedCount / total) * 100);
 
   const onSelect = (index: number) => {
     if (status !== "none") return;
@@ -102,15 +123,26 @@ export function QuestRunner({
     });
   };
 
+  const markCorrect = () => {
+    setStatus("correct");
+    setCompletedCount((c) => c + 1);
+    // Пошаговый прогресс фиксируем в фоне (только при первом прохождении).
+    if (!alreadyCompleted) {
+      void recordCorrectAnswer(lessonId).catch((err) =>
+        console.error("recordCorrectAnswer failed", err),
+      );
+    }
+  };
+
   const onContinue = () => {
-    // Повтор после неверного — сброс к выбору.
+    // Повтор после неверного — сброс к выбору (код ученика сохраняем).
     if (status === "wrong") {
       setStatus("none");
       setSelectedOption(undefined);
       return;
     }
 
-    // «Далее» после верного — следующий вопрос или финал.
+    // «Далее» после верного — следующее задание или финал.
     if (status === "correct") {
       const isLast = activeIndex === total - 1;
       if (isLast) {
@@ -119,22 +151,38 @@ export function QuestRunner({
         setActiveIndex((i) => i + 1);
         setStatus("none");
         setSelectedOption(undefined);
+        setCodeOutput(null);
       }
       return;
     }
 
-    // «Проверить» — оценка выбранного варианта.
-    if (selectedOption === undefined || !challenge) return;
+    if (!challenge) return;
+
+    // «Проверить» для задания с кодом: запускаем Python и сверяем вывод.
+    if (kind === "code" && challenge.type === "code") {
+      if (running) return;
+      setRunning(true);
+      void runPython(currentCode).then((res) => {
+        setRunning(false);
+        setCodeOutput(res.output);
+        const passed =
+          res.ok &&
+          res.output.trim() === challenge.expectedOutput.trim();
+        if (passed) {
+          markCorrect();
+        } else {
+          setStatus("wrong");
+          setHearts((h) => Math.max(0, h - 1));
+        }
+      });
+      return;
+    }
+
+    // «Проверить» для вопроса с вариантами.
+    if (selectedOption === undefined || challenge.type === "code") return;
 
     if (selectedOption === challenge.correctIndex) {
-      setStatus("correct");
-      setCompletedCount((c) => c + 1);
-      // Пошаговый прогресс фиксируем в фоне (только при первом прохождении).
-      if (!alreadyCompleted) {
-        void recordCorrectAnswer(lessonId).catch((err) =>
-          console.error("recordCorrectAnswer failed", err),
-        );
-      }
+      markCorrect();
     } else {
       setStatus("wrong");
       setHearts((h) => Math.max(0, h - 1));
@@ -177,6 +225,38 @@ export function QuestRunner({
     );
   }
 
+  // ── Теория перед заданиями ──
+  if (phase === "theory") {
+    return (
+      <>
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[720px] px-6 py-8">
+            <p className="text-center text-xs font-bold uppercase tracking-wide text-neutral-400 lg:text-start">
+              {alreadyCompleted ? "Тренировка · " : ""}
+              {title}
+            </p>
+            <Markdown>{content.theory}</Markdown>
+          </div>
+        </div>
+
+        <Footer
+          status="completed"
+          disabled={isPending}
+          onCheck={() => {
+            // Урок без заданий: «Продолжить» сразу завершает урок.
+            if (total === 0) {
+              finalize();
+            } else {
+              setPhase("tasks");
+            }
+          }}
+        />
+
+        <AchievementToastStack achievements={toasts} onDismiss={dismissToast} />
+      </>
+    );
+  }
+
   // ── Жизни закончились ──
   // Клиентский фейл: жизни не персистятся, при повторном входе снова MAX_HEARTS.
   if (hearts <= 0) {
@@ -209,12 +289,12 @@ export function QuestRunner({
     );
   }
 
-  // ── Урок без вопросов (защита от пустого сидера) ──
+  // ── Урок без заданий и без теории (защита от пустого контента) ──
   if (total === 0) {
     return (
       <div className="mx-auto flex h-full max-w-lg flex-col items-center justify-center gap-y-6 px-6 text-center">
         <h1 className="text-lg font-bold text-neutral-700 lg:text-2xl">
-          В этом уроке пока нет вопросов.
+          В этом уроке пока нет заданий.
         </h1>
         <Button variant="secondary" size="lg" asChild>
           <Link href="/learn">Вернуться к курсу</Link>
@@ -229,25 +309,39 @@ export function QuestRunner({
 
       <div className="flex-1">
         <div className="flex h-full items-center justify-center">
-          <div className="flex w-full flex-col gap-y-12 px-6 lg:min-h-[350px] lg:w-[600px] lg:px-0">
+          <div className="flex w-full flex-col gap-y-12 px-6 py-8 lg:min-h-[350px] lg:w-[600px] lg:px-0">
             <div className="space-y-2">
               {alreadyCompleted && (
                 <p className="text-center text-xs font-bold uppercase tracking-wide text-neutral-400 lg:text-start">
                   Тренировка · {title}
                 </p>
               )}
-              <h1 className="text-center text-lg font-bold text-neutral-700 lg:text-start lg:text-3xl">
+              <h1 className="whitespace-pre-wrap text-center text-lg font-bold text-neutral-700 lg:text-start lg:text-3xl">
                 {challenge.prompt}
               </h1>
             </div>
 
-            <Challenge
-              options={challenge.options}
-              onSelect={onSelect}
-              status={status}
-              selectedOption={selectedOption}
-              disabled={isPending}
-            />
+            {kind === "code" ? (
+              <CodeChallenge
+                code={currentCode}
+                onChange={(code) =>
+                  setCodeByIndex((prev) => ({ ...prev, [activeIndex]: code }))
+                }
+                output={codeOutput}
+                running={running}
+                status={status}
+              />
+            ) : (
+              challenge.type !== "code" && (
+                <Challenge
+                  options={challenge.options}
+                  onSelect={onSelect}
+                  status={status}
+                  selectedOption={selectedOption}
+                  disabled={isPending}
+                />
+              )
+            )}
           </div>
         </div>
       </div>
@@ -256,7 +350,12 @@ export function QuestRunner({
         status={status}
         onCheck={onContinue}
         disabled={
-          isPending || (status === "none" && selectedOption === undefined)
+          isPending ||
+          running ||
+          (status === "none" &&
+            (kind === "code"
+              ? currentCode.trim() === ""
+              : selectedOption === undefined))
         }
       />
 

@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { Activity, Coins, Zap } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
 import { requireAdminOr404 } from "@/lib/server-guard";
+
+import { AdminNav } from "../admin-nav";
 
 // «дд.мм, чч:мм» — компактно и достаточно, чтобы заметить пачку отметок,
 // проставленных за одну минуту (признак «прокликал, не глядя»).
@@ -57,9 +57,7 @@ export default async function AdminActivityPage() {
           <p className="mb-6 text-center text-neutral-500">
             Кто когда заходил и что отмечал изученным.
           </p>
-          <Button variant="ghost" asChild>
-            <Link href="/admin/resources">← Материалы «Интересного»</Link>
-          </Button>
+          <AdminNav active="activity" />
         </div>
 
         <h2 className="mb-3 mt-8 text-xl font-bold text-neutral-700">Ученики</h2>
