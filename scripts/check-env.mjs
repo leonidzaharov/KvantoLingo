@@ -62,6 +62,30 @@ const RULES = [
     },
   },
   {
+    name: "SUPABASE_URL",
+    check: (v) => {
+      if (!v) throw new Error("не задан (нужен для загрузки картинок уроков)");
+      if (!/^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(v)) {
+        throw new Error(
+          "должен выглядеть как https://<project-ref>.supabase.co (Settings → API → Project URL)",
+        );
+      }
+    },
+  },
+  {
+    name: "SUPABASE_SERVICE_ROLE_KEY",
+    check: (v) => {
+      if (!v) {
+        throw new Error(
+          "не задан — скопируй service_role из Supabase: Settings → API → Project API keys",
+        );
+      }
+      if (v.length < 40) {
+        throw new Error("слишком короткий — это точно не service_role-ключ");
+      }
+    },
+  },
+  {
     name: "AUTH_SECRET",
     check: (v) => {
       if (!v) throw new Error("не задан");
@@ -94,7 +118,10 @@ const log = (level, name, msg) => {
 // Безопасный preview: для DB-URL показываем только хост:порт/db, кредитные
 // данные (user:password между protocol:// и @) выкусываем.
 function safePreview(name, value) {
-  if (name === "AUTH_SECRET") return `длина ${value.length}`;
+  if (name === "AUTH_SECRET" || name === "SUPABASE_SERVICE_ROLE_KEY") {
+    return `длина ${value.length}`;
+  }
+  if (name === "SUPABASE_URL") return value;
   const m = value.match(/^([^:]+):\/\/[^@]*@(.+)$/);
   if (m) return `${m[1]}://<creds>@${m[2].slice(0, 50)}`;
   return "(непарсимое значение — не показываю)";

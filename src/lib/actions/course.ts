@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ACTIVE_COURSE_COOKIE } from "@/lib/active-course";
 import { requireUser } from "@/lib/server-guard";
+import { getTrackFilter } from "@/lib/track-access";
 
 /**
  * Делает категорию активным курсом: пишет её id в cookie и ведёт на /learn.
@@ -15,17 +16,22 @@ import { requireUser } from "@/lib/server-guard";
  * (см. server-guard: RPC-канал Next пропускает любую полезную нагрузку).
  */
 export async function setActiveCourse(categoryId: number): Promise<void> {
-  await requireUser(); // только залогиненный пользователь меняет курс
+  const userId = await requireUser(); // только залогиненный пользователь меняет курс
 
   if (!Number.isInteger(categoryId) || categoryId <= 0) {
     throw new Error("BAD_REQUEST");
   }
   const category = await prisma.category.findUnique({
     where: { id: categoryId },
-    select: { id: true },
+    select: { id: true, track: true },
   });
   if (!category) {
     throw new Error("BAD_REQUEST");
+  }
+  // Курс чужого направления выбрать нельзя (даже подделанным запросом).
+  const track = await getTrackFilter(userId);
+  if (track && category.track !== track) {
+    throw new Error("FORBIDDEN");
   }
 
   const cookieStore = await cookies();

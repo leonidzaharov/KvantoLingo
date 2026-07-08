@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { ACTIVE_COURSE_COOKIE } from "@/lib/active-course";
+import { getTrackFilter } from "@/lib/track-access";
 import { FeedWrapper } from "@/components/feed-wrapper";
 import { StickyWrapper } from "@/components/sticky-wrapper";
 import { UserProgress } from "@/components/user-progress";
@@ -30,17 +31,19 @@ export default async function LearnPage() {
     redirect("/courses");
   }
 
-  const [user, category] = await Promise.all([
+  const [user, track, category] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, totalXp: true, currency: true },
     }),
+    getTrackFilter(userId),
     prisma.category.findUnique({
       where: { id: activeCourseId },
       select: {
         id: true,
         name: true,
         icon: true,
+        track: true,
         lessons: {
           orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
           select: {
@@ -66,6 +69,10 @@ export default async function LearnPage() {
   }
   if (!category) {
     // cookie указывает на удалённую категорию — сбросим выбор.
+    redirect("/courses");
+  }
+  // Курс чужого направления (сменили группу, старый cookie) — к выбору.
+  if (track && category.track !== track) {
     redirect("/courses");
   }
 

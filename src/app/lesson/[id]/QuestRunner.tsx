@@ -14,6 +14,7 @@ import {
   type CompleteLessonResult,
 } from "@/lib/actions/gamification";
 import { questionKind, type LessonContent } from "@/lib/lesson-content";
+import { outputsMatch } from "@/lib/output-match";
 import { getPyodide, runPython } from "@/lib/pyodide-runner";
 
 import { Challenge } from "./challenge";
@@ -79,6 +80,11 @@ export function QuestRunner({
   const [codeByIndex, setCodeByIndex] = useState<Record<number, string>>({});
   const [codeOutput, setCodeOutput] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  // Неудачные запуски по номерам заданий: после второй неудачи CodeChallenge
+  // показывает ожидаемый вывод целиком (раньше — только подсказку без ответа).
+  const [codeFailsByIndex, setCodeFailsByIndex] = useState<
+    Record<number, number>
+  >({});
 
   // Если в уроке есть python-задания — начинаем греть Pyodide заранее,
   // пока ученик читает теорию/отвечает на вопросы.
@@ -165,14 +171,19 @@ export function QuestRunner({
       void runPython(currentCode).then((res) => {
         setRunning(false);
         setCodeOutput(res.output);
+        // Сравнение «мягкое»: кавычки, лишние пробелы, ё/е и пустые строки
+        // по краям не считаются ошибкой (см. output-match.ts).
         const passed =
-          res.ok &&
-          res.output.trim() === challenge.expectedOutput.trim();
+          res.ok && outputsMatch(res.output, challenge.expectedOutput);
         if (passed) {
           markCorrect();
         } else {
           setStatus("wrong");
           setHearts((h) => Math.max(0, h - 1));
+          setCodeFailsByIndex((prev) => ({
+            ...prev,
+            [activeIndex]: (prev[activeIndex] ?? 0) + 1,
+          }));
         }
       });
       return;
@@ -330,6 +341,10 @@ export function QuestRunner({
                 output={codeOutput}
                 running={running}
                 status={status}
+                expectedOutput={
+                  challenge.type === "code" ? challenge.expectedOutput : ""
+                }
+                fails={codeFailsByIndex[activeIndex] ?? 0}
               />
             ) : (
               challenge.type !== "code" && (

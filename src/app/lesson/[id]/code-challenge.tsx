@@ -1,5 +1,6 @@
 "use client";
 
+import { diffHint } from "@/lib/output-match";
 import { cn } from "@/lib/utils";
 
 type CodeChallengeProps = {
@@ -9,6 +10,10 @@ type CodeChallengeProps = {
   output: string | null;
   running: boolean;
   status: "correct" | "wrong" | "none";
+  /** Ожидаемый вывод задания — для подсказки после неудачных попыток. */
+  expectedOutput: string;
+  /** Сколько раз проверка этого задания уже провалилась. */
+  fails: number;
 };
 
 // Редактор кода для задания типа code: textarea с моноширинным шрифтом
@@ -20,7 +25,15 @@ export const CodeChallenge = ({
   output,
   running,
   status,
+  expectedOutput,
+  fails,
 }: CodeChallengeProps) => {
+  // Первая неудача — подсказка без ответа (номер строки с расхождением),
+  // со второй — показываем ожидаемый вывод целиком, чтобы ученик не застрял.
+  const hint =
+    status === "wrong" && output !== null ? diffHint(output, expectedOutput) : null;
+  const showExpected = status === "wrong" && fails >= 2;
+
   return (
     <div className="flex flex-col gap-y-3">
       <textarea
@@ -70,6 +83,23 @@ export const CodeChallenge = ({
           ) : (
             <pre className="overflow-x-auto whitespace-pre-wrap">{output}</pre>
           )}
+        </div>
+      )}
+
+      {hint && !showExpected && (
+        <p className="rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-700">
+          💡 {hint}
+        </p>
+      )}
+
+      {showExpected && (
+        <div className="rounded-xl border-2 border-green-200 bg-green-50 p-4 font-mono text-sm text-neutral-700">
+          <div className="mb-1 text-xs font-bold uppercase tracking-wide text-green-600">
+            Так должен выглядеть вывод
+          </div>
+          <pre className="overflow-x-auto whitespace-pre-wrap">
+            {expectedOutput}
+          </pre>
         </div>
       )}
     </div>

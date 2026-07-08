@@ -28,6 +28,7 @@ export default async function NewLessonPage() {
           categories={categories.map((c) => ({
             id: c.id,
             name: c.name,
+            track: c.track,
             nextSortOrder: (c.lessons[0]?.sortOrder ?? -1) + 1,
           }))}
         />

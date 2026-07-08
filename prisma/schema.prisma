@@ -56,11 +56,15 @@ model User {
   studiedResources UserResource[]
 }
 
-/// Категория уроков (например: «Робототехника», «IT», «Промдизайн»)
+/// Категория уроков — модуль программы (например: «Scratch», «Python»).
+/// track привязывает модуль к направлению: ученик видит только модули
+/// направления своей группы (наставник — все). Существующие категории
+/// HTML/JS/Scratch — вводные, поэтому default(intro).
 model Category {
-  id      Int      @id @default(autoincrement())
+  id      Int        @id @default(autoincrement())
   name    String
   icon    String?
+  track   GroupTrack @default(intro)
   lessons Lesson[]
 }
 

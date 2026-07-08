@@ -51,6 +51,12 @@ const components: React.ComponentProps<typeof ReactMarkdown>["components"] = {
       {...props}
     />
   ),
+  img: (props) => (
+    // Ссылки внешние (Supabase Storage), размеры заранее неизвестны —
+    // next/image не подходит.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img className="max-w-full rounded-xl" alt="" {...props} />
+  ),
   hr: () => <hr className="my-4 border-t-2 border-neutral-200" />,
 };
 

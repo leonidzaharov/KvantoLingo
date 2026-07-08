@@ -1,12 +1,31 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Play, Plus, Trash2 } from "lucide-react";
 
 import { saveLesson, type LessonFormState } from "@/lib/actions/lessons";
+import { TRACK_LABELS, TRACK_ORDER } from "@/lib/groups";
+import type { GroupTrack } from "@/generated/prisma";
 import type { LessonContent } from "@/lib/lesson-content";
+import { runPython } from "@/lib/pyodide-runner";
 import { Button } from "@/components/ui/button";
+
+// WYSIWYG-редактор построен на Lexical и работает только в браузере,
+// поэтому грузим его без SSR (см. комментарий в theory-editor.tsx).
+const TheoryEditor = dynamic(
+  () =>
+    import("@/components/editor/theory-editor").then((m) => m.TheoryEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[260px] items-center justify-center rounded-xl border-2 border-neutral-200 font-medium text-neutral-400">
+        Загружаю редактор…
+      </div>
+    ),
+  },
+);
 
 const inputClass =
   "w-full rounded-xl border-2 border-neutral-200 p-3 font-medium text-neutral-700 focus:border-sky-300 focus:outline-none";
@@ -27,6 +46,7 @@ type EditorCode = {
   prompt: string;
   starterCode: string;
   expectedOutput: string;
+  referenceSolution: string;
 };
 type EditorQuestion = EditorChoice | EditorCode;
 
@@ -41,6 +61,7 @@ function fromContent(content: LessonContent): EditorQuestion[] {
           prompt: q.prompt,
           starterCode: q.starterCode ?? "",
           expectedOutput: q.expectedOutput,
+          referenceSolution: q.referenceSolution ?? "",
         }
       : {
           kind: "choice" as const,
@@ -63,6 +84,7 @@ function toContentJson(theory: string, questions: EditorQuestion[]): string {
             prompt: q.prompt,
             starterCode: q.starterCode,
             expectedOutput: q.expectedOutput,
+            referenceSolution: q.referenceSolution,
           }
         : {
             type: "choice",
@@ -77,6 +99,7 @@ function toContentJson(theory: string, questions: EditorQuestion[]): string {
 type CategoryOption = {
   id: number;
   name: string;
+  track: GroupTrack;
   /** Порядок по умолчанию для нового урока в этой категории (max + 1). */
   nextSortOrder: number;
 };
@@ -174,8 +197,38 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
         prompt: "",
         starterCode: "",
         expectedOutput: "",
+        referenceSolution: "",
       },
     ]);
+  };
+
+  // Запуск эталонного решения (Pyodide, в браузере наставника) и
+  // автозаполнение «Ожидаемого вывода» из его print'ов.
+  type RefRun = { running: boolean; note: string; failed: boolean };
+  const [refRuns, setRefRuns] = useState<Record<number, RefRun>>({});
+
+  const runReference = (key: number, solution: string) => {
+    setRefRuns((prev) => ({
+      ...prev,
+      [key]: { running: true, note: "", failed: false },
+    }));
+    void runPython(solution).then((res) => {
+      const done = (note: string, failed: boolean) =>
+        setRefRuns((prev) => ({
+          ...prev,
+          [key]: { running: false, note, failed },
+        }));
+      if (!res.ok) {
+        done(`Решение упало с ошибкой:\n${res.output}`, true);
+        return;
+      }
+      if (res.output.trim() === "") {
+        done("Решение ничего не печатает — добавь print.", true);
+        return;
+      }
+      update(key, { expectedOutput: res.output });
+      done("Готово: «Ожидаемый вывод» заполнен из вывода решения.", false);
+    });
   };
 
   return (
@@ -208,11 +261,19 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
             onChange={(e) => onCategoryChange(Number(e.target.value))}
             className={inputClass}
           >
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            {TRACK_ORDER.map((track) => {
+              const inTrack = categories.filter((c) => c.track === track);
+              if (inTrack.length === 0) return null;
+              return (
+                <optgroup key={track} label={TRACK_LABELS[track]}>
+                  {inTrack.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
         </label>
 
@@ -259,24 +320,17 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
         </label>
       </div>
 
-      <label className="flex flex-col gap-y-1.5">
+      <div className="flex flex-col gap-y-1.5">
         <span className="font-bold text-neutral-700">
           Теория (гайд){" "}
           <span className="font-normal text-neutral-400">(необязательно)</span>
         </span>
-        <textarea
-          value={theory}
-          onChange={(e) => setTheory(e.target.value)}
-          rows={10}
-          maxLength={50000}
-          placeholder={"# Заголовок\n\nОбычный текст, **жирный**, *курсив*.\n\n- пункт списка\n- ещё пункт\n\n```python\nprint(\"пример кода\")\n```"}
-          className={codeClass}
-        />
+        <TheoryEditor markdown={theory} onChange={setTheory} />
         <span className="text-sm text-neutral-400">
-          Показывается ученику перед заданиями. Разметка Markdown: #&nbsp;заголовок,
-          **жирный**, -&nbsp;список, ```код```. Картинки и видео — ссылками.
+          Показывается ученику перед заданиями. Картинки можно перетащить в
+          текст или вставить через Ctrl+V — они сами загрузятся в хранилище.
         </span>
-      </label>
+      </div>
 
       <h2 className="mt-2 text-lg font-bold text-neutral-700">
         Задания ({questions.length})
@@ -424,6 +478,59 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
               </label>
               <label className="flex flex-col gap-y-1.5">
                 <span className="text-sm font-bold text-neutral-700">
+                  Эталонное решение{" "}
+                  <span className="font-normal text-neutral-400">
+                    (ученик его не видит)
+                  </span>
+                </span>
+                <textarea
+                  rows={4}
+                  maxLength={10000}
+                  value={q.referenceSolution}
+                  onChange={(e) =>
+                    update(q.key, { referenceSolution: e.target.value })
+                  }
+                  spellCheck={false}
+                  className={codeClass}
+                />
+                <span className="text-sm text-neutral-400">
+                  Напиши правильное решение и нажми «Запустить» — «Ожидаемый
+                  вывод» заполнится сам, без опечаток.
+                </span>
+              </label>
+              <div className="flex flex-col gap-y-2">
+                <Button
+                  type="button"
+                  variant="secondaryOutline"
+                  size="sm"
+                  className="self-start"
+                  disabled={
+                    q.referenceSolution.trim() === "" ||
+                    refRuns[q.key]?.running
+                  }
+                  onClick={() => runReference(q.key, q.referenceSolution)}
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  {refRuns[q.key]?.running
+                    ? "Запускаю…"
+                    : "Запустить решение"}
+                </Button>
+                {refRuns[q.key]?.note && (
+                  <pre
+                    className={
+                      "whitespace-pre-wrap rounded-xl p-3 font-sans text-sm font-medium " +
+                      (refRuns[q.key].failed
+                        ? "bg-rose-50 text-rose-600"
+                        : "bg-green-50 text-green-700")
+                    }
+                  >
+                    {refRuns[q.key].note}
+                  </pre>
+                )}
+              </div>
+
+              <label className="flex flex-col gap-y-1.5">
+                <span className="text-sm font-bold text-neutral-700">
                   Ожидаемый вывод программы
                 </span>
                 <textarea
@@ -439,7 +546,8 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
                 />
                 <span className="text-sm text-neutral-400">
                   Задание засчитывается, когда print-вывод ученика совпадёт с
-                  этим текстом (пробелы по краям не считаются).
+                  этим текстом. Сравнение щадящее: кавычки любого вида, лишние
+                  пробелы, ё/е и пустые строки по краям не считаются ошибкой.
                 </span>
               </label>
             </>

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { parseLessonContent } from "@/lib/lesson-content";
+import { getTrackFilter } from "@/lib/track-access";
 
 import { QuestRunner } from "./QuestRunner";
 
@@ -23,11 +24,23 @@ export default async function LessonPage({ params }: PageProps) {
     notFound();
   }
 
-  const lesson = await prisma.lesson.findUnique({
-    where: { id: lessonId },
-    select: { id: true, title: true, content: true },
-  });
+  const [lesson, track] = await Promise.all([
+    prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        category: { select: { track: true } },
+      },
+    }),
+    getTrackFilter(userId),
+  ]);
   if (!lesson) {
+    notFound();
+  }
+  // Урок чужого направления по прямой ссылке — как будто его нет.
+  if (track && lesson.category.track !== track) {
     notFound();
   }
 

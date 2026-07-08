@@ -46,6 +46,7 @@ export default async function EditLessonPage({ params }: PageProps) {
           categories={categories.map((c) => ({
             id: c.id,
             name: c.name,
+            track: c.track,
             nextSortOrder: (c.lessons[0]?.sortOrder ?? -1) + 1,
           }))}
           lesson={{
