@@ -8,8 +8,12 @@ import { ArrowDown, ArrowUp, Play, Plus, Trash2 } from "lucide-react";
 import { saveLesson, type LessonFormState } from "@/lib/actions/lessons";
 import { TRACK_LABELS, TRACK_ORDER } from "@/lib/groups";
 import type { GroupTrack } from "@/generated/prisma";
-import type { LessonContent } from "@/lib/lesson-content";
-import { runPython } from "@/lib/pyodide-runner";
+import {
+  CODE_LANGUAGES,
+  type CodeLanguage,
+  type LessonContent,
+} from "@/lib/lesson-content";
+import { LANGUAGE_LABELS, runCode } from "@/lib/code-runner";
 import { Button } from "@/components/ui/button";
 
 // WYSIWYG-редактор построен на Lexical и работает только в браузере,
@@ -44,6 +48,7 @@ type EditorCode = {
   kind: "code";
   key: number;
   prompt: string;
+  language: CodeLanguage;
   starterCode: string;
   expectedOutput: string;
   referenceSolution: string;
@@ -59,6 +64,7 @@ function fromContent(content: LessonContent): EditorQuestion[] {
           kind: "code" as const,
           key: nextKey++,
           prompt: q.prompt,
+          language: q.language ?? "python",
           starterCode: q.starterCode ?? "",
           expectedOutput: q.expectedOutput,
           referenceSolution: q.referenceSolution ?? "",
@@ -82,6 +88,7 @@ function toContentJson(theory: string, questions: EditorQuestion[]): string {
         ? {
             type: "code",
             prompt: q.prompt,
+            language: q.language,
             starterCode: q.starterCode,
             expectedOutput: q.expectedOutput,
             referenceSolution: q.referenceSolution,
@@ -195,6 +202,7 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
         kind: "code",
         key: nextKey++,
         prompt: "",
+        language: "python",
         starterCode: "",
         expectedOutput: "",
         referenceSolution: "",
@@ -202,17 +210,21 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
     ]);
   };
 
-  // Запуск эталонного решения (Pyodide, в браузере наставника) и
-  // автозаполнение «Ожидаемого вывода» из его print'ов.
+  // Запуск эталонного решения (в браузере наставника) и автозаполнение
+  // «Ожидаемого вывода» из его вывода.
   type RefRun = { running: boolean; note: string; failed: boolean };
   const [refRuns, setRefRuns] = useState<Record<number, RefRun>>({});
 
-  const runReference = (key: number, solution: string) => {
+  const runReference = (
+    key: number,
+    language: CodeLanguage,
+    solution: string,
+  ) => {
     setRefRuns((prev) => ({
       ...prev,
       [key]: { running: true, note: "", failed: false },
     }));
-    void runPython(solution).then((res) => {
+    void runCode(language, solution).then((res) => {
       const done = (note: string, failed: boolean) =>
         setRefRuns((prev) => ({
           ...prev,
@@ -223,7 +235,8 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
         return;
       }
       if (res.output.trim() === "") {
-        done("Решение ничего не печатает — добавь print.", true);
+        const call = language === "python" ? "print" : "console.log";
+        done(`Решение ничего не печатает — добавь ${call}.`, true);
         return;
       }
       update(key, { expectedOutput: res.output });
@@ -344,7 +357,9 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
           <div className="flex items-center gap-x-2">
             <span className="flex-1 text-xs font-bold uppercase tracking-wide text-neutral-400">
               {index + 1} ·{" "}
-              {q.kind === "code" ? "Код (Python)" : "Выбор ответа"}
+              {q.kind === "code"
+                ? `Код (${LANGUAGE_LABELS[q.language]})`
+                : "Выбор ответа"}
             </span>
             <Button
               type="button"
@@ -460,6 +475,26 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
             <>
               <label className="flex flex-col gap-y-1.5">
                 <span className="text-sm font-bold text-neutral-700">
+                  Язык
+                </span>
+                <select
+                  value={q.language}
+                  onChange={(e) =>
+                    update(q.key, {
+                      language: e.target.value as CodeLanguage,
+                    })
+                  }
+                  className={inputClass + " sm:max-w-[220px]"}
+                >
+                  {CODE_LANGUAGES.map((lang) => (
+                    <option key={lang} value={lang}>
+                      {LANGUAGE_LABELS[lang]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-y-1.5">
+                <span className="text-sm font-bold text-neutral-700">
                   Стартовый код{" "}
                   <span className="font-normal text-neutral-400">
                     (то, что ученик видит в редакторе; можно пусто)
@@ -508,7 +543,9 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
                     q.referenceSolution.trim() === "" ||
                     refRuns[q.key]?.running
                   }
-                  onClick={() => runReference(q.key, q.referenceSolution)}
+                  onClick={() =>
+                    runReference(q.key, q.language, q.referenceSolution)
+                  }
                 >
                   <Play className="mr-2 h-4 w-4" />
                   {refRuns[q.key]?.running

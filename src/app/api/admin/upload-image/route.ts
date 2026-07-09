@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
 
+import { rateLimit } from "@/lib/rate-limit";
 import { requireAdmin } from "@/lib/server-guard";
 
 // ============================================================
@@ -28,10 +29,20 @@ const ALLOWED_TYPES: Record<string, string> = {
 };
 
 export async function POST(request: Request): Promise<Response> {
+  let userId: string;
   try {
-    await requireAdmin();
+    userId = await requireAdmin();
   } catch {
     return Response.json({ error: "Нет доступа" }, { status: 403 });
+  }
+
+  // Не больше 30 загрузок в минуту на наставника — с запасом для реальной
+  // работы, но отсекает случайный цикл/спам.
+  if (!rateLimit(`upload:${userId}`, 30, 60_000)) {
+    return Response.json(
+      { error: "Слишком много загрузок подряд. Подожди минуту." },
+      { status: 429 },
+    );
   }
 
   const supabaseUrl = process.env.SUPABASE_URL;

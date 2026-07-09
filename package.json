@@ -12,6 +12,7 @@
     "rotate-pin": "node scripts/rotate-pin.mjs",
     "create-user": "node scripts/create-user.mjs",
     "cleanup-attempts": "node scripts/cleanup-login-attempts.mjs",
+    "backup": "node scripts/backup-db.mjs",
     "seed-resources": "node scripts/seed-resources.mjs",
     "vercel-build": "node scripts/check-env.mjs && prisma generate && prisma migrate deploy && next build"
   },
@@ -23,6 +24,8 @@
     "@sentry/nextjs": "^10.62.0",
     "@supabase/supabase-js": "^2.110.1",
     "@types/canvas-confetti": "^1.9.0",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "bcryptjs": "^3.0.3",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",

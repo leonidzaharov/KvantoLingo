@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
@@ -34,5 +35,15 @@ export default async function HomePage() {
     }),
   ]);
 
-  return <ProfileSelector groups={groups} ungrouped={ungrouped} />;
+  return (
+    <>
+      <ProfileSelector groups={groups} ungrouped={ungrouped} />
+      <Link
+        href="/privacy"
+        className="fixed bottom-3 left-1/2 -translate-x-1/2 text-xs font-medium text-neutral-400 hover:text-neutral-600"
+      >
+        Политика конфиденциальности
+      </Link>
+    </>
+  );
 }

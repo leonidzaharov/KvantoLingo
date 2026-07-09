@@ -15,7 +15,7 @@ import {
 } from "@/lib/actions/gamification";
 import { questionKind, type LessonContent } from "@/lib/lesson-content";
 import { outputsMatch } from "@/lib/output-match";
-import { getPyodide, runPython } from "@/lib/pyodide-runner";
+import { prewarmCode, runCode } from "@/lib/code-runner";
 
 import { Challenge } from "./challenge";
 import { CodeChallenge } from "./code-challenge";
@@ -86,13 +86,11 @@ export function QuestRunner({
     Record<number, number>
   >({});
 
-  // Если в уроке есть python-задания — начинаем греть Pyodide заранее,
-  // пока ученик читает теорию/отвечает на вопросы.
+  // Если в уроке есть код-задания — начинаем греть их движки заранее,
+  // пока ученик читает теорию/отвечает на вопросы (тяжёлый только Python).
   useEffect(() => {
-    if (questions.some((q) => questionKind(q) === "code")) {
-      void getPyodide().catch(() => {
-        /* покажем ошибку при реальном запуске */
-      });
+    for (const q of questions) {
+      if (q.type === "code") prewarmCode(q.language);
     }
   }, [questions]);
 
@@ -164,11 +162,11 @@ export function QuestRunner({
 
     if (!challenge) return;
 
-    // «Проверить» для задания с кодом: запускаем Python и сверяем вывод.
+    // «Проверить» для задания с кодом: запускаем код и сверяем вывод.
     if (kind === "code" && challenge.type === "code") {
       if (running) return;
       setRunning(true);
-      void runPython(currentCode).then((res) => {
+      void runCode(challenge.language, currentCode).then((res) => {
         setRunning(false);
         setCodeOutput(res.output);
         // Сравнение «мягкое»: кавычки, лишние пробелы, ё/е и пустые строки
@@ -337,6 +335,9 @@ export function QuestRunner({
                 code={currentCode}
                 onChange={(code) =>
                   setCodeByIndex((prev) => ({ ...prev, [activeIndex]: code }))
+                }
+                language={
+                  challenge.type === "code" ? challenge.language : "python"
                 }
                 output={codeOutput}
                 running={running}

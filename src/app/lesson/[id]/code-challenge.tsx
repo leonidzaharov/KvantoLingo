@@ -1,11 +1,15 @@
 "use client";
 
+import { LANGUAGE_LABELS } from "@/lib/code-runner";
+import type { CodeLanguage } from "@/lib/lesson-content";
 import { diffHint } from "@/lib/output-match";
 import { cn } from "@/lib/utils";
 
 type CodeChallengeProps = {
   code: string;
   onChange: (code: string) => void;
+  /** Язык задания — влияет на подпись редактора и текст при запуске. */
+  language: CodeLanguage;
   /** Вывод последнего запуска (null — ещё не запускали). */
   output: string | null;
   running: boolean;
@@ -22,6 +26,7 @@ type CodeChallengeProps = {
 export const CodeChallenge = ({
   code,
   onChange,
+  language,
   output,
   running,
   status,
@@ -58,7 +63,7 @@ export const CodeChallenge = ({
         autoCapitalize="off"
         autoCorrect="off"
         disabled={running || status === "correct"}
-        aria-label="Код на Python"
+        aria-label={`Код на ${LANGUAGE_LABELS[language]}`}
         className={cn(
           "w-full rounded-xl border-2 border-neutral-200 bg-neutral-50 p-4 font-mono text-sm text-neutral-700 outline-none focus:border-sky-300 disabled:opacity-70",
           status === "correct" && "border-green-300 bg-green-50",
@@ -73,12 +78,14 @@ export const CodeChallenge = ({
           </div>
           {running ? (
             <span className="text-neutral-400">
-              Выполняем… (первый запуск скачивает Python, ~10 МБ — потом будет
-              мгновенно)
+              {language === "python"
+                ? "Выполняем… (первый запуск скачивает Python, ~10 МБ — потом будет мгновенно)"
+                : "Выполняем…"}
             </span>
           ) : output === "" ? (
             <span className="text-neutral-400">
-              (программа ничего не напечатала — нужен print)
+              (программа ничего не напечатала — нужен{" "}
+              {language === "python" ? "print" : "console.log"})
             </span>
           ) : (
             <pre className="overflow-x-auto whitespace-pre-wrap">{output}</pre>

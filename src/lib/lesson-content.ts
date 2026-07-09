@@ -22,9 +22,19 @@ export const ChoiceQuestionSchema = z
     message: "correctIndex вне диапазона вариантов",
   });
 
+// Языки, на которых ученик пишет код-задания. Python — через Pyodide,
+// JavaScript — через браузерный worker (см. src/lib/code-runner.ts).
+export const CODE_LANGUAGES = ["python", "javascript"] as const;
+export type CodeLanguage = (typeof CODE_LANGUAGES)[number];
+
 export const CodeQuestionSchema = z.object({
   type: z.literal("code"),
   prompt: z.string().trim().min(1).max(3000),
+  /**
+   * Язык задания. По умолчанию python — так старые уроки (без поля) остаются
+   * питоновскими. Вводные группы могут давать и JavaScript.
+   */
+  language: z.enum(CODE_LANGUAGES).default("python"),
   /** Код, с которого ученик начинает (может быть пустым). */
   starterCode: z.string().max(10000).default(""),
   /**
