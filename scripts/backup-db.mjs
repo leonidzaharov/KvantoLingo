@@ -18,9 +18,13 @@
 // ============================================================
 
 import "dotenv/config";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
+
+// Сколько последних копий хранить. Задача в Планировщике делает копию
+// каждый день — 60 файлов ≈ два месяца истории, дальше старьё удаляем.
+const KEEP_BACKUPS = 60;
 
 // DIRECT_URL — прямое подключение (не пулер): для полного скана надёжнее.
 const url = process.env.DIRECT_URL || process.env.DATABASE_URL;
@@ -67,6 +71,18 @@ try {
 
   console.log(`\n✓ Готово: ${totalRows} строк из ${tables.length} таблиц`);
   console.log(`  → ${file}`);
+
+  // Ротация: имена содержат ISO-дату, поэтому сортировка по имени = по времени.
+  const old = (await readdir(dir))
+    .filter((f) => /^backup-.*\.json$/.test(f))
+    .sort()
+    .slice(0, -KEEP_BACKUPS);
+  for (const f of old) {
+    await unlink(path.join(dir, f));
+  }
+  if (old.length > 0) {
+    console.log(`  Удалено старых копий: ${old.length} (храним ${KEEP_BACKUPS})`);
+  }
 } catch (err) {
   console.error("✗ Бэкап не удался:", err.message);
   process.exitCode = 1;

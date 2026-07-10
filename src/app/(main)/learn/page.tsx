@@ -9,6 +9,7 @@ import { FeedWrapper } from "@/components/feed-wrapper";
 import { StickyWrapper } from "@/components/sticky-wrapper";
 import { UserProgress } from "@/components/user-progress";
 
+import { AnimatedBackground } from "./animated-background";
 import { Header } from "./header";
 import { UnitBanner } from "./unit-banner";
 import { LessonButton } from "./lesson-button";
@@ -97,6 +98,7 @@ export default async function LearnPage() {
 
   return (
     <div className="flex flex-row-reverse gap-[48px] px-6">
+      <AnimatedBackground />
       <StickyWrapper>
         <UserProgress
           courseTitle={category.name}

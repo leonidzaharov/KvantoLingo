@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import type { NextAuthConfig } from "next-auth";
 
 export const authConfig = {
@@ -13,11 +14,17 @@ export const authConfig = {
         nextUrl.pathname.startsWith(route)
       );
 
-      if (isProtected) {
-          if (isLoggedIn) return true; // Доступ разрешен
-          return false; // Редирект на страницу входа
-        }
-        return true;
+      if (isProtected && !isLoggedIn) {
+        // Возвращаем редирект НА ВХОД сами, а не `false`: наш proxy.ts теперь
+        // оборачивает свою функцию в auth(...), а в этом режиме next-auth
+        // дефолтный редирект НЕ делает (уважает только Response из authorized).
+        const signInUrl = nextUrl.clone();
+        signInUrl.pathname = "/";
+        signInUrl.search = "";
+        signInUrl.searchParams.set("callbackUrl", nextUrl.href);
+        return NextResponse.redirect(signInUrl);
+      }
+      return true;
     },
     async jwt({ token, user }) {
       if (user) {
