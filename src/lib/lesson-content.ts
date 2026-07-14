@@ -83,6 +83,58 @@ export function parseLessonContent(raw: string): LessonContent {
 }
 
 /** Тип вопроса с учётом старого формата (нет type = choice). */
-export function questionKind(q: LessonQuestion): "choice" | "code" {
+export function questionKind(q: { type?: string }): "choice" | "code" {
   return q.type === "code" ? "code" : "choice";
+}
+
+// ============================================================
+// «Безопасная» версия контента — то, что можно отдать в браузер ученика.
+//
+// Полный LessonContent содержит ответы: correctIndex у вопросов и
+// referenceSolution у код-заданий. Всё, что попало в клиентский компонент,
+// видно через F12 — поэтому ответы из payload вырезаются, а проверка
+// вариантов делается server action'ом (см. checkAnswer в gamification.ts).
+// expectedOutput остаётся: по нему браузерный раннер сверяет вывод, и он же
+// показывается ученику как подсказка после второй неудачи.
+// ============================================================
+
+export type SafeChoiceQuestion = {
+  type?: "choice";
+  prompt: string;
+  options: string[];
+};
+
+export type SafeCodeQuestion = {
+  type: "code";
+  prompt: string;
+  language: CodeLanguage;
+  starterCode: string;
+  expectedOutput: string;
+};
+
+export type SafeLessonQuestion = SafeChoiceQuestion | SafeCodeQuestion;
+
+export type SafeLessonContent = {
+  theory: string;
+  questions: SafeLessonQuestion[];
+};
+
+/** Вырезает ответы из контента перед отправкой на клиент. */
+export function sanitizeLessonContent(
+  content: LessonContent,
+): SafeLessonContent {
+  return {
+    theory: content.theory,
+    questions: content.questions.map((q): SafeLessonQuestion =>
+      q.type === "code"
+        ? {
+            type: "code",
+            prompt: q.prompt,
+            language: q.language,
+            starterCode: q.starterCode,
+            expectedOutput: q.expectedOutput,
+          }
+        : { type: "choice", prompt: q.prompt, options: q.options },
+    ),
+  };
 }

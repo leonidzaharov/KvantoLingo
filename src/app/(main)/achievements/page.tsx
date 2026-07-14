@@ -5,15 +5,22 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import {
-  ACHIEVEMENT_LIST,
-  type AchievementDefinition,
-} from "@/lib/achievements";
 
-type AchievementCard = AchievementDefinition & {
+import { ShowcaseButton } from "./showcase-button";
+
+type AchievementCard = {
+  id: number;
+  title: string;
+  description: string;
+  icon: string | null;
+  targetValue: number;
+  rewardCurrency: number;
+  /** Секретная и ещё не открытая — показываем как «???». */
+  isSecret: boolean;
   progress: number;
   isUnlocked: boolean;
   unlockedAt: Date | null;
+  isShowcased: boolean;
 };
 
 export default async function AchievementsPage() {
@@ -23,37 +30,45 @@ export default async function AchievementsPage() {
   }
   const userId = session.user.id;
 
-  const codes = ACHIEVEMENT_LIST.map((d) => d.code);
-
-  // Подмешиваем прогресс пользователя к статичному реестру.
-  // Запись в Achievement создаётся лениво (при первом bumpAchievement),
-  // поэтому реестр — единственный надёжный источник полного списка.
-  const dbAchievements = await prisma.achievement.findMany({
-    where: { code: { in: codes } },
-    select: {
-      code: true,
-      users: {
-        where: { userId },
-        select: {
-          progress: true,
-          isUnlocked: true,
-          unlockedAt: true,
+  // Ачивки теперь живут в БД (наставник правит их в /admin/achievements).
+  // Выключенные не показываем; прогресс пользователя подмешиваем join'ом.
+  const [achievements, user] = await Promise.all([
+    prisma.achievement.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+      include: {
+        category: { select: { _count: { select: { lessons: true } } } },
+        users: {
+          where: { userId },
+          select: { progress: true, isUnlocked: true, unlockedAt: true },
         },
       },
-    },
-  });
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { showcaseAchievementId: true },
+    }),
+  ]);
 
-  const userByCode = new Map(
-    dbAchievements.map((a) => [a.code, a.users[0] ?? null]),
-  );
-
-  const cards: AchievementCard[] = ACHIEVEMENT_LIST.map((def) => {
-    const row = userByCode.get(def.code) ?? null;
+  const cards: AchievementCard[] = achievements.map((a) => {
+    const row = a.users[0] ?? null;
+    const isUnlocked = row?.isUnlocked ?? false;
     return {
-      ...def,
+      id: a.id,
+      title: a.title,
+      description: a.description,
+      icon: a.icon,
+      // Цель категорийной ачивки — живое число уроков курса (как в движке).
+      targetValue:
+        a.metric === "category_completed"
+          ? a.category?._count.lessons ?? 0
+          : a.targetValue,
+      rewardCurrency: a.rewardCurrency,
+      isSecret: a.isHidden && !isUnlocked,
       progress: row?.progress ?? 0,
-      isUnlocked: row?.isUnlocked ?? false,
+      isUnlocked,
       unlockedAt: row?.unlockedAt ?? null,
+      isShowcased: user?.showcaseAchievementId === a.id,
     };
   });
 
@@ -62,16 +77,20 @@ export default async function AchievementsPage() {
 
   return (
     <div className="px-3">
-      <div className="mb-6 flex items-center justify-between gap-x-4">
+      <div className="mb-2 flex items-center justify-between gap-x-4">
         <h1 className="text-2xl font-bold text-neutral-700">Достижения</h1>
         <div className="shrink-0 rounded-xl border-2 border-b-4 px-3 py-1.5 text-sm font-bold text-neutral-500">
           Открыто {unlockedCount} / {totalCount}
         </div>
       </div>
+      <p className="mb-6 text-sm text-neutral-400">
+        Открытую ачивку можно выставить на витрину — она появится в профиле и
+        рядом с именем в лидерборде.
+      </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => (
-          <AchievementCardView key={card.code} card={card} />
+          <AchievementCardView key={card.id} card={card} />
         ))}
       </div>
     </div>
@@ -79,6 +98,30 @@ export default async function AchievementsPage() {
 }
 
 function AchievementCardView({ card }: { card: AchievementCard }) {
+  // Секретная и не открытая: ни названия, ни описания, ни прогресса —
+  // только интрига.
+  if (card.isSecret) {
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border-2 border-b-4 border-dashed border-neutral-200 p-4">
+        <div className="flex items-start gap-x-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-400">
+            <span className="text-2xl">❓</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-neutral-400">???</p>
+            <span className="mt-1 inline-flex items-center gap-x-1 rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-bold text-neutral-400">
+              <Lock className="h-3 w-3" />
+              Секрет
+            </span>
+          </div>
+        </div>
+        <p className="text-sm text-neutral-400">
+          Секретное достижение. Продолжай заниматься — узнаешь, что это.
+        </p>
+      </div>
+    );
+  }
+
   const progressPct = Math.min(
     100,
     Math.round((card.progress / Math.max(1, card.targetValue)) * 100),
@@ -131,7 +174,7 @@ function AchievementCardView({ card }: { card: AchievementCard }) {
       <p className="text-sm text-neutral-500">{card.description}</p>
 
       <div className="mt-auto flex flex-col gap-2">
-        {card.targetValue > 1 && (
+        {!card.isUnlocked && card.targetValue > 1 && (
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between text-xs font-bold text-neutral-400">
               <span>Прогресс</span>
@@ -155,6 +198,13 @@ function AchievementCardView({ card }: { card: AchievementCard }) {
             </span>
           )}
         </div>
+
+        {card.isUnlocked && (
+          <ShowcaseButton
+            achievementId={card.id}
+            isShowcased={card.isShowcased}
+          />
+        )}
       </div>
     </div>
   );

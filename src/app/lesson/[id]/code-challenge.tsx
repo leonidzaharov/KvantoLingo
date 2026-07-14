@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { LANGUAGE_LABELS } from "@/lib/code-runner";
 import type { CodeLanguage } from "@/lib/lesson-content";
 import { diffHint } from "@/lib/output-match";
@@ -39,11 +41,23 @@ export const CodeChallenge = ({
     status === "wrong" && output !== null ? diffHint(output, expectedOutput) : null;
   const showExpected = status === "wrong" && fails >= 2;
 
+  // Вставка в редактор отключена: код-задание — это тренировка рук, а не
+  // Ctrl+V из чата с одноклассником. Показываем объяснение при попытке.
+  const [pasteTried, setPasteTried] = useState(false);
+
   return (
     <div className="flex flex-col gap-y-3">
       <textarea
         value={code}
         onChange={(e) => onChange(e.target.value)}
+        onPaste={(e) => {
+          e.preventDefault();
+          setPasteTried(true);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setPasteTried(true);
+        }}
         onKeyDown={(e) => {
           // Tab внутри редактора — отступ (4 пробела), а не уход фокуса.
           if (e.key === "Tab") {
@@ -70,6 +84,13 @@ export const CodeChallenge = ({
           status === "wrong" && "border-rose-200",
         )}
       />
+
+      {pasteTried && (
+        <p className="rounded-xl bg-sky-50 p-3 text-sm font-medium text-sky-700">
+          ✋ Вставка здесь не работает — программисты тренируют руки. Набери
+          код сам, это и есть учёба 😉
+        </p>
+      )}
 
       {(running || output !== null) && (
         <div className="rounded-xl bg-neutral-800 p-4 font-mono text-sm text-neutral-100">

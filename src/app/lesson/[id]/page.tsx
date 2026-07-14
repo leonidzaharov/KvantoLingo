@@ -2,7 +2,10 @@ import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
-import { parseLessonContent } from "@/lib/lesson-content";
+import {
+  parseLessonContent,
+  sanitizeLessonContent,
+} from "@/lib/lesson-content";
 import { getTrackFilter } from "@/lib/track-access";
 
 import { QuestRunner } from "./QuestRunner";
@@ -57,10 +60,12 @@ export default async function LessonPage({ params }: PageProps) {
   });
 
   return (
+    // В браузер уходит контент БЕЗ ответов: correctIndex и referenceSolution
+    // вырезаны, проверку вариантов делает server action checkAnswer.
     <QuestRunner
       lessonId={lesson.id}
       title={lesson.title}
-      content={parsed}
+      content={sanitizeLessonContent(parsed)}
       alreadyCompleted={progress.isCompleted}
     />
   );

@@ -1,4 +1,5 @@
 import { Activity, Coins, Zap } from "lucide-react";
+import Link from "next/link";
 
 import { prisma } from "@/lib/db";
 import { requireAdminOr404 } from "@/lib/server-guard";
@@ -68,7 +69,12 @@ export default async function AdminActivityPage() {
               className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border-2 border-neutral-200 p-4"
             >
               <span className="min-w-0 flex-1 truncate font-bold text-neutral-700">
-                {u.name}
+                <Link
+                  href={`/profile/${u.id}`}
+                  className="hover:text-sky-600 hover:underline"
+                >
+                  {u.name}
+                </Link>
                 {u.isAdmin && (
                   <span className="ml-2 text-xs font-bold uppercase text-neutral-400">
                     админ

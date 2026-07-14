@@ -9,11 +9,12 @@ import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import type { UnlockedAchievement } from "@/lib/achievements";
 import {
+  checkAnswer,
   completeLesson,
   recordCorrectAnswer,
   type CompleteLessonResult,
 } from "@/lib/actions/gamification";
-import { questionKind, type LessonContent } from "@/lib/lesson-content";
+import { questionKind, type SafeLessonContent } from "@/lib/lesson-content";
 import { outputsMatch } from "@/lib/output-match";
 import { prewarmCode, runCode } from "@/lib/code-runner";
 
@@ -30,7 +31,8 @@ const MAX_HEARTS = 5;
 type Props = {
   lessonId: number;
   title: string;
-  content: LessonContent;
+  /** Контент без ответов (sanitizeLessonContent) — их проверяет сервер. */
+  content: SafeLessonContent;
   /** Урок уже пройден раньше → это «тренировка», XP повторно не начислится. */
   alreadyCompleted: boolean;
 };
@@ -69,6 +71,8 @@ export function QuestRunner({
     undefined,
   );
   const [status, setStatus] = useState<"none" | "correct" | "wrong">("none");
+  // Ответ проверяет сервер (checkAnswer) — на время запроса блокируем кнопку.
+  const [checking, setChecking] = useState(false);
   const [hearts, setHearts] = useState(MAX_HEARTS);
   const [completedCount, setCompletedCount] = useState(0);
   const [result, setResult] = useState<CompleteLessonResult | null>(null);
@@ -94,8 +98,8 @@ export function QuestRunner({
     }
   }, [questions]);
 
-  const dismissToast = useCallback((code: string) => {
-    setToasts((prev) => prev.filter((t) => t.code !== code));
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const challenge = questions[activeIndex];
@@ -115,7 +119,11 @@ export function QuestRunner({
   const finalize = () => {
     startTransition(async () => {
       try {
-        const res = await completeLesson(lessonId);
+        // Перфект = ни одной потерянной жизни. Урок без заданий (total === 0)
+        // перфектом не считается — там нечего было проходить без ошибок.
+        const res = await completeLesson(lessonId, {
+          perfect: total > 0 && hearts === MAX_HEARTS,
+        });
         setResult(res);
         if (res.unlockedAchievements.length > 0) {
           setToasts((prev) => [...prev, ...res.unlockedAchievements]);
@@ -187,15 +195,26 @@ export function QuestRunner({
       return;
     }
 
-    // «Проверить» для вопроса с вариантами.
+    // «Проверить» для вопроса с вариантами. Правильный ответ знает только
+    // сервер — спрашиваем его (в клиентском payload ответов больше нет).
     if (selectedOption === undefined || challenge.type === "code") return;
+    if (checking) return;
 
-    if (selectedOption === challenge.correctIndex) {
-      markCorrect();
-    } else {
-      setStatus("wrong");
-      setHearts((h) => Math.max(0, h - 1));
-    }
+    setChecking(true);
+    void checkAnswer(lessonId, activeIndex, selectedOption)
+      .then((correct) => {
+        if (correct) {
+          markCorrect();
+        } else {
+          setStatus("wrong");
+          setHearts((h) => Math.max(0, h - 1));
+        }
+      })
+      .catch((err) => {
+        // Сеть моргнула — не засчитываем ни ответ, ни ошибку, пусть нажмёт ещё раз.
+        console.error("checkAnswer failed", err);
+      })
+      .finally(() => setChecking(false));
   };
 
   // ── Экран результата ──
@@ -368,6 +387,7 @@ export function QuestRunner({
         disabled={
           isPending ||
           running ||
+          checking ||
           (status === "none" &&
             (kind === "code"
               ? currentCode.trim() === ""

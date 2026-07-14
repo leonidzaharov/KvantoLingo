@@ -1,4 +1,5 @@
 import { Medal } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
@@ -23,7 +24,13 @@ export default async function LeaderboardPage() {
   const users = await prisma.user.findMany({
     where: { isAdmin: false }, // наставник не соревнуется и не светится
     orderBy: [{ totalXp: "desc" }, { createdAt: "asc" }],
-    select: { id: true, name: true, totalXp: true },
+    select: {
+      id: true,
+      name: true,
+      totalXp: true,
+      // Ачивка-витрина — эмодзи рядом с именем.
+      showcaseAchievement: { select: { title: true, icon: true } },
+    },
     take: 10,
   });
 
@@ -54,8 +61,11 @@ export default async function LeaderboardPage() {
                     : "text-neutral-500";
 
             return (
-              <div
+              // Строка — ссылка на профиль: свой ведёт на /profile,
+              // чужой — на /profile/[id].
+              <Link
                 key={u.id}
+                href={isMe ? "/profile" : `/profile/${u.id}`}
                 className={cn(
                   "flex w-full items-center rounded-xl p-2 px-4",
                   isMe ? "bg-green-100" : "hover:bg-neutral-100",
@@ -73,6 +83,14 @@ export default async function LeaderboardPage() {
 
                 <p className="flex-1 truncate font-bold text-neutral-700">
                   {u.name}
+                  {u.showcaseAchievement && (
+                    <span
+                      className="ml-2 cursor-default"
+                      title={u.showcaseAchievement.title}
+                    >
+                      {u.showcaseAchievement.icon ?? "🏆"}
+                    </span>
+                  )}
                   {isMe && (
                     <span className="ml-2 text-xs font-bold text-green-600">
                       (ты)
@@ -83,7 +101,7 @@ export default async function LeaderboardPage() {
                 <p className="shrink-0 font-bold text-neutral-400">
                   {u.totalXp} XP
                 </p>
-              </div>
+              </Link>
             );
           })}
         </div>

@@ -1,15 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { prisma } from "@/lib/db";
+import { parseLessonContent } from "@/lib/lesson-content";
 import {
-  ACHIEVEMENT_CODES,
-  CATEGORY_ACHIEVEMENT,
-  bumpAchievement,
-  setAchievementProgress,
+  advanceAchievements,
   type UnlockedAchievement,
 } from "@/lib/achievements";
+import { computeLessonRewards } from "@/lib/achievements-logic";
 import { IdSchema, parse, requireUser } from "@/lib/server-guard";
 import { calculateLevel, countQuestions } from "@/lib/gamification-logic";
 
@@ -29,9 +29,13 @@ export type CompleteLessonResult = {
 
 export async function completeLesson(
   lessonId: number,
+  opts?: { perfect?: boolean },
 ): Promise<CompleteLessonResult> {
   const userId = await requireUser();
   lessonId = parse(IdSchema, lessonId);
+  // Клиентский флаг «прошёл без единой ошибки» — как и весь ход урока,
+  // доверяем клиенту (школьный проект). Строгое === true отсекает мусор.
+  const perfect = opts?.perfect === true;
 
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
@@ -50,16 +54,24 @@ export async function completeLesson(
     where: { userId_lessonId: { userId, lessonId } },
   });
 
-  const firstCompletion = !existingProgress?.isCompleted;
   const now = new Date();
-  const oldLevel = user.level;
 
-  // XP и монеты начисляем только при первом прохождении — иначе бесконечный
-  // фарм. lastActiveDate обновляем всегда: ученик-таки занимался сегодня.
-  const gainedXp = firstCompletion ? lesson.xpReward : 0;
-  const gainedCoins = firstCompletion ? lesson.coinReward : 0;
-  const newTotalXp = user.totalXp + gainedXp;
-  const newLevel = calculateLevel(newTotalXp);
+  // Награды считает чистая функция (achievements-logic.ts, покрыта тестами):
+  // XP и монеты платим только за первое прохождение — иначе бесконечный фарм.
+  // lastActiveDate обновляем всегда: ученик-таки занимался сегодня.
+  const {
+    firstCompletion,
+    gainedXp,
+    gainedCoins,
+    newTotalXp,
+    newLevel,
+    leveledUp,
+  } = computeLessonRewards(
+    lesson,
+    user,
+    existingProgress?.isCompleted ?? false,
+    calculateLevel,
+  );
 
   const totalQuestions = countQuestions(lesson.content);
 
@@ -95,72 +107,31 @@ export async function completeLesson(
     }),
   ]);
 
-  // Все правила вызываем последовательно — каждое возвращает карточку или
-  // null, если ИМЕННО этот вызов его разблокировал. Идемпотентно: повторные
-  // прохождения и одинаковые значения не «перевыдадут» уже открытое.
-  // Сериализуем (не Promise.all), чтобы избежать гонок при одновременных
-  // increment user.currency из разных bump'ов.
-  const unlockedAchievements: UnlockedAchievement[] = [];
-  const collect = (a: UnlockedAchievement | null) => {
-    if (a) unlockedAchievements.push(a);
-  };
-
-  if (firstCompletion) {
-    collect(await bumpAchievement(userId, ACHIEVEMENT_CODES.FIRST_LESSON));
-  }
-
-  // Считаем уроки прямо после транзакции — счётчик уже учитывает только что
-  // завершённый. На повторных прохождениях значение не изменится — set-логика
-  // в setAchievementProgress (max) не уронит прогресс.
-  const completedLessons = await prisma.userLessonProgress.count({
-    where: { userId, isCompleted: true },
-  });
-
-  collect(
-    await setAchievementProgress(
-      userId,
-      ACHIEVEMENT_CODES.LESSONS_5,
-      completedLessons,
-    ),
-  );
-  collect(
-    await setAchievementProgress(
-      userId,
-      ACHIEVEMENT_CODES.LESSONS_15,
-      completedLessons,
-    ),
-  );
-  collect(
-    await setAchievementProgress(
-      userId,
-      ACHIEVEMENT_CODES.LEVEL_3,
-      updated.level,
-    ),
-  );
-  collect(
-    await setAchievementProgress(
-      userId,
-      ACHIEVEMENT_CODES.LEVEL_6,
-      updated.level,
-    ),
-  );
-  // Категорийные ачивки: считаем уроки конкретной категории и ставим
-  // как snapshot (set, а не bump) — повторное прохождение не сдвинет счётчик,
-  // удаление урока из каталога мягко уменьшит локальный счёт, но накопленный
-  // прогресс ачивки уже зафиксирован max'ом и не упадёт.
-  const categoryCode = CATEGORY_ACHIEVEMENT[lesson.category.name];
-  if (categoryCode) {
-    const categoryCompleted = await prisma.userLessonProgress.count({
+  // Метрики считаем прямо после транзакции — счётчики уже учитывают только
+  // что завершённый урок. На повторных прохождениях значения не изменятся —
+  // set-логика движка (max) не уронит накопленный прогресс.
+  const [completedLessons, categoryCompletedLessons] = await Promise.all([
+    prisma.userLessonProgress.count({
+      where: { userId, isCompleted: true },
+    }),
+    prisma.userLessonProgress.count({
       where: {
         userId,
         isCompleted: true,
         lesson: { categoryId: lesson.category.id },
       },
-    });
-    collect(
-      await setAchievementProgress(userId, categoryCode, categoryCompleted),
-    );
-  }
+    }),
+  ]);
+
+  const unlockedAchievements = await advanceAchievements(userId, {
+    completedLessons,
+    level: updated.level,
+    categoryId: lesson.category.id,
+    categoryCompletedLessons,
+    // Перфект засчитываем только при первом прохождении — иначе фарм
+    // «пересдачами» уже выученного урока.
+    perfectDelta: firstCompletion && perfect ? 1 : 0,
+  });
 
   revalidatePath("/learn");
   revalidatePath(`/lesson/${lessonId}`);
@@ -170,11 +141,38 @@ export async function completeLesson(
     gainedCoins,
     totalXp: updated.totalXp,
     level: updated.level,
-    leveledUp: updated.level > oldLevel,
+    leveledUp,
     lastActiveDate: updated.lastActiveDate ?? now,
     firstCompletion,
     unlockedAchievements,
   };
+}
+
+/**
+ * Проверяет ответ на вопрос с вариантами. Правильный индекс живёт ТОЛЬКО
+ * здесь, на сервере: в браузер уходит контент без ответов (см.
+ * sanitizeLessonContent), поэтому подсмотреть их через F12 больше нельзя.
+ */
+export async function checkAnswer(
+  lessonId: number,
+  questionIndex: number,
+  optionIndex: number,
+): Promise<boolean> {
+  await requireUser();
+  lessonId = parse(IdSchema, lessonId);
+  questionIndex = parse(z.number().int().min(0).max(49), questionIndex);
+  optionIndex = parse(z.number().int().min(0).max(7), optionIndex);
+
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    select: { content: true },
+  });
+  if (!lesson) return false;
+
+  const question = parseLessonContent(lesson.content).questions[questionIndex];
+  if (!question || question.type === "code") return false;
+
+  return question.correctIndex === optionIndex;
 }
 
 /**

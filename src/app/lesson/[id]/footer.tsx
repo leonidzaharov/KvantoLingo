@@ -15,11 +15,14 @@ type FooterProps = {
 export const Footer = ({ onCheck, status, disabled }: FooterProps) => {
   // Enter дублирует основную кнопку — привычно для Duolingo.
   // Но не когда фокус в поле ввода (редактор кода): там Enter — новая строка.
+  // И не когда фокус на кнопке (вариант ответа, сама кнопка футера): Enter
+  // там кликает нативно, а preventDefault ниже этот клик убил бы — карточку
+  // стало бы невозможно выбрать с клавиатуры.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag =
         e.target instanceof HTMLElement ? e.target.tagName : "";
-      if (tag === "TEXTAREA" || tag === "INPUT") return;
+      if (tag === "TEXTAREA" || tag === "INPUT" || tag === "BUTTON") return;
       if (e.key === "Enter") {
         e.preventDefault();
         if (!disabled) onCheck();

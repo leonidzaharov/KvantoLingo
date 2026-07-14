@@ -48,12 +48,17 @@ model User {
   currency       Int       @default(0)
   lastActiveDate DateTime? // последний вход/активность — «кто давно не появлялся»
   createdAt      DateTime  @default(now())
+  /// Ачивка-«витрина»: ученик выбирает одну из открытых, она показывается
+  /// в профиле и рядом с именем в лидерборде. SetNull — удаление ачивки
+  /// наставником просто очищает витрину, не трогая пользователя.
+  showcaseAchievementId Int?
 
   // Связи
-  group            Group?               @relation(fields: [groupId], references: [id])
-  achievements     UserAchievement[]
-  lessonProgress   UserLessonProgress[]
-  studiedResources UserResource[]
+  group               Group?               @relation(fields: [groupId], references: [id])
+  showcaseAchievement Achievement?         @relation("Showcase", fields: [showcaseAchievementId], references: [id], onDelete: SetNull)
+  achievements        UserAchievement[]
+  lessonProgress      UserLessonProgress[]
+  studiedResources    UserResource[]
 }
 
 /// Категория уроков — модуль программы (например: «Scratch», «Python»).
@@ -61,11 +66,12 @@ model User {
 /// направления своей группы (наставник — все). Существующие категории
 /// HTML/JS/Scratch — вводные, поэтому default(intro).
 model Category {
-  id      Int        @id @default(autoincrement())
-  name    String
-  icon    String?
-  track   GroupTrack @default(intro)
-  lessons Lesson[]
+  id           Int           @id @default(autoincrement())
+  name         String
+  icon         String?
+  track        GroupTrack    @default(intro)
+  lessons      Lesson[]
+  achievements Achievement[]
 }
 
 /// Отдельный урок с вопросами/заданиями в формате JSON
@@ -106,23 +112,41 @@ model UserLessonProgress {
 // ДОМЕН 2: Достижения
 // ============================================================
 
-/// Справочник достижений (ачивок). `code` — стабильный идентификатор,
-/// под которым на достижение ссылается код приложения (см. lib/achievements).
-/// Числовой `id` остаётся PK, но не годится для ссылок из кода.
-model Achievement {
-  id             Int     @id @default(autoincrement())
-  code           String  @unique
-  title          String
-  description    String
-  icon           String?
-  targetValue    Int     // Целевое значение для разблокировки
-  rewardCurrency Int     @default(0)
-  isHidden       Boolean @default(false)
-
-  users UserAchievement[]
+/// Тип условия ачивки — какую метрику ученика сравниваем с целью.
+/// Движок (lib/achievements.ts) после каждого урока пересчитывает метрики
+/// и продвигает все активные ачивки подходящего типа.
+enum AchievementMetric {
+  lessons_completed // всего уроков пройдено (target = сколько нужно)
+  category_completed // пройдены ВСЕ уроки категории categoryId (target считается по живому числу уроков)
+  level_reached // достигнут уровень (target = номер уровня)
+  perfect_lessons // уроков пройдено без единой ошибки (target = сколько нужно)
 }
 
-/// Связующая таблица «Пользователь ↔ Достижение» с прогрессом
+/// Справочник достижений. Раньше жил в коде (REGISTRY в lib/achievements),
+/// теперь — данные: наставник создаёт/правит ачивки в /admin/achievements.
+/// `code` остался у восьми «встроенных» ачивок для связи с историей,
+/// у новых он NULL — код приложения на него больше не ссылается.
+model Achievement {
+  id             Int               @id @default(autoincrement())
+  code           String?           @unique
+  title          String
+  description    String
+  icon           String? // эмодзи для карточки и витрины
+  metric         AchievementMetric @default(lessons_completed)
+  categoryId     Int? // только для metric = category_completed
+  targetValue    Int // цель; для category_completed игнорируется (target = число уроков категории)
+  rewardCurrency Int               @default(0)
+  isHidden       Boolean           @default(false) // секретная: до открытия видна как «???»
+  isActive       Boolean           @default(true) // выключенная не выдаётся и не показывается
+  sortOrder      Int               @default(0)
+
+  category    Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  users       UserAchievement[]
+  showcasedBy User[]            @relation("Showcase")
+}
+
+/// Связующая таблица «Пользователь ↔ Достижение» с прогрессом.
+/// Cascade: наставник удалил ачивку → прогресс по ней тоже уходит.
 model UserAchievement {
   userId        String
   achievementId Int
@@ -131,7 +155,7 @@ model UserAchievement {
   unlockedAt    DateTime?
 
   user        User        @relation(fields: [userId], references: [id])
-  achievement Achievement @relation(fields: [achievementId], references: [id])
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
 
   @@id([userId, achievementId])
 }

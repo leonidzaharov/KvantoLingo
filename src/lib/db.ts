@@ -12,8 +12,16 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+// Схема Postgres. В обычной жизни не задана → public (прод и локальный dev).
+// E2E-тесты поднимают приложение на отдельной схеме (DATABASE_SCHEMA=e2e),
+// чтобы прогоны не писали в живые данные учеников.
+const databaseSchema = process.env.DATABASE_SCHEMA;
+
 function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaPg({ connectionString: databaseUrl });
+  const adapter = new PrismaPg(
+    { connectionString: databaseUrl },
+    databaseSchema ? { schema: databaseSchema } : undefined,
+  );
   return new PrismaClient({ adapter });
 }
 

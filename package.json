@@ -8,11 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "check-env": "node scripts/check-env.mjs",
     "rotate-pin": "node scripts/rotate-pin.mjs",
     "create-user": "node scripts/create-user.mjs",
     "cleanup-attempts": "node scripts/cleanup-login-attempts.mjs",
     "backup": "node scripts/backup-db.mjs",
+    "restore": "node scripts/restore-db.mjs",
     "seed-resources": "node scripts/seed-resources.mjs",
     "vercel-build": "node scripts/check-env.mjs && prisma generate && prisma migrate deploy && next build"
   },
@@ -44,6 +46,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",

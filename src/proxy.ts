@@ -42,6 +42,9 @@ function buildCsp(nonce: string): string {
     "connect-src 'self' https://cdn.jsdelivr.net https://*.supabase.co https://vitals.vercel-insights.com https://*.ingest.sentry.io https://*.ingest.de.sentry.io",
     "worker-src 'self' blob:",
     "child-src 'self' blob:",
+    // Встраиваемые плееры «Интересного» (card.tsx): YouTube-видео и проекты
+    // Scratch. Без frame-src браузер берёт child-src и режет оба iframe.
+    "frame-src 'self' https://www.youtube-nocookie.com https://scratch.mit.edu",
     "manifest-src 'self'",
     // Дожимаем случайные http-ссылки до https (в dev не мешаем localhost).
     ...(isDev ? [] : ['upgrade-insecure-requests']),

@@ -10,7 +10,7 @@ const AUTO_DISMISS_MS = 6000;
 
 type Props = {
   achievements: UnlockedAchievement[];
-  onDismiss: (code: string) => void;
+  onDismiss: (id: number) => void;
 };
 
 /**
@@ -32,7 +32,7 @@ export function AchievementToastStack({ achievements, onDismiss }: Props) {
       aria-atomic="false"
     >
       {achievements.map((a) => (
-        <Toast key={a.code} achievement={a} onDismiss={onDismiss} />
+        <Toast key={a.id} achievement={a} onDismiss={onDismiss} />
       ))}
     </div>
   );
@@ -43,15 +43,15 @@ function Toast({
   onDismiss,
 }: {
   achievement: UnlockedAchievement;
-  onDismiss: (code: string) => void;
+  onDismiss: (id: number) => void;
 }) {
   useEffect(() => {
     const timer = window.setTimeout(
-      () => onDismiss(achievement.code),
+      () => onDismiss(achievement.id),
       AUTO_DISMISS_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [achievement.code, onDismiss]);
+  }, [achievement.id, onDismiss]);
 
   return (
     <div className="achievement-toast" role="alert">
@@ -74,7 +74,7 @@ function Toast({
         type="button"
         className="achievement-toast-dismiss"
         aria-label="Скрыть уведомление"
-        onClick={() => onDismiss(achievement.code)}
+        onClick={() => onDismiss(achievement.id)}
       >
         ×
       </button>

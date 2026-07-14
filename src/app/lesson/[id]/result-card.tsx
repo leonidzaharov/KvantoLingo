@@ -42,7 +42,12 @@ export const ResultCard = ({ value, variant }: ResultCardProps) => {
   const Icon = meta.icon;
 
   return (
-    <div className={cn("w-full rounded-2xl border-2", meta.frame)}>
+    // data-testid — якорь для E2E: значения XP/монет/сердец часто совпадают
+    // (5 монет и 5 сердец), и без него тест не отличит одну карточку от другой.
+    <div
+      data-testid={`result-${variant}`}
+      className={cn("w-full rounded-2xl border-2", meta.frame)}
+    >
       <div className="rounded-t-xl p-1.5 text-center text-xs font-bold uppercase text-white">
         {meta.label}
       </div>

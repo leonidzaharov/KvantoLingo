@@ -6,6 +6,7 @@ const SECTIONS = [
   { key: "lessons", href: "/admin/lessons", label: "Уроки" },
   { key: "categories", href: "/admin/categories", label: "Курсы" },
   { key: "groups", href: "/admin/groups", label: "Группы" },
+  { key: "achievements", href: "/admin/achievements", label: "Ачивки" },
   { key: "resources", href: "/admin/resources", label: "Интересное" },
   { key: "activity", href: "/admin/activity", label: "Активность" },
 ] as const;
