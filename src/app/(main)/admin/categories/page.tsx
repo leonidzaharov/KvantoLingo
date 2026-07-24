@@ -7,7 +7,12 @@ import { TRACK_LABELS, TRACK_ORDER } from "@/lib/groups";
 import { requireAdminOr404 } from "@/lib/server-guard";
 
 import { AdminNav } from "../admin-nav";
+import { PublicationControl } from "../publication-controls";
 import { DeleteButton } from "./delete-button";
+import {
+  duplicateCategory,
+  toggleCategoryPublication,
+} from "@/lib/actions/program";
 
 // Админка курсов-модулей: название, иконка и главное — направление
 // (вводный/углублённый/проектный), по которому фильтруются группы.
@@ -16,7 +21,9 @@ export default async function AdminCategoriesPage() {
 
   const categories = await prisma.category.findMany({
     orderBy: { id: "asc" },
-    include: { _count: { select: { lessons: true } } },
+    include: {
+      _count: { select: { lessons: true, groupAccess: true } },
+    },
   });
 
   return (
@@ -60,7 +67,7 @@ export default async function AdminCategoriesPage() {
                   {inTrack.map((category) => (
                     <li
                       key={category.id}
-                      className="flex items-center gap-x-4 rounded-2xl border-2 border-neutral-200 p-4"
+                      className="flex flex-wrap items-center gap-3 rounded-2xl border-2 border-neutral-200 p-4"
                     >
                       <span className="w-10 shrink-0 text-center text-2xl">
                         {category.icon ?? "📚"}
@@ -73,6 +80,27 @@ export default async function AdminCategoriesPage() {
                           Уроков: {category._count.lessons}
                         </span>
                       </div>
+                      <span
+                        className={`text-xs font-bold ${
+                          category.isPublished
+                            ? "text-green-600"
+                            : "text-amber-600"
+                        }`}
+                      >
+                        {category.isPublished ? "Опубликован" : "Черновик"} ·{" "}
+                        {category._count.groupAccess} групп
+                      </span>
+                      <PublicationControl
+                        id={category.id}
+                        isPublished={category.isPublished}
+                        action={toggleCategoryPublication}
+                      />
+                      <form action={duplicateCategory}>
+                        <input type="hidden" name="id" value={category.id} />
+                        <Button type="submit" variant="ghost" size="sm">
+                          Дублировать
+                        </Button>
+                      </form>
                       <Button variant="secondaryOutline" size="sm" asChild>
                         <Link href={`/admin/categories/${category.id}`}>
                           Изменить

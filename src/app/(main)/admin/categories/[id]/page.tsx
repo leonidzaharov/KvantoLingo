@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAdminOr404 } from "@/lib/server-guard";
 
+import { CategoryGroupAccessForm } from "../../group-access-form";
 import { CategoryForm } from "../category-form";
 
 type PageProps = {
@@ -11,20 +12,21 @@ type PageProps = {
 
 export default async function EditCategoryPage({ params }: PageProps) {
   await requireAdminOr404();
-
   const { id } = await params;
   const categoryId = Number.parseInt(id, 10);
-  if (!Number.isFinite(categoryId) || categoryId <= 0) {
-    notFound();
-  }
+  if (!Number.isFinite(categoryId) || categoryId <= 0) notFound();
 
   const category = await prisma.category.findUnique({
     where: { id: categoryId },
-    select: { id: true, name: true, icon: true, track: true },
+    include: { groupAccess: { select: { groupId: true } } },
   });
-  if (!category) {
-    notFound();
-  }
+  if (!category) notFound();
+
+  const groups = await prisma.group.findMany({
+    where: { track: category.track },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   return (
     <div className="px-3">
@@ -33,6 +35,13 @@ export default async function EditCategoryPage({ params }: PageProps) {
           Курс «{category.name}»
         </h1>
         <CategoryForm category={category} />
+        <div className="mb-10">
+          <CategoryGroupAccessForm
+            categoryId={category.id}
+            groups={groups}
+            selectedIds={category.groupAccess.map((item) => item.groupId)}
+          />
+        </div>
       </div>
     </div>
   );

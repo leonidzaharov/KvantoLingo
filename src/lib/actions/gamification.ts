@@ -12,6 +12,7 @@ import {
 import { computeLessonRewards } from "@/lib/achievements-logic";
 import { IdSchema, parse, requireUser } from "@/lib/server-guard";
 import { calculateLevel, countQuestions } from "@/lib/gamification-logic";
+import { canAccessLesson } from "@/lib/course-access";
 
 export type CompleteLessonResult = {
   gainedXp: number;
@@ -33,6 +34,9 @@ export async function completeLesson(
 ): Promise<CompleteLessonResult> {
   const userId = await requireUser();
   lessonId = parse(IdSchema, lessonId);
+  if (!(await canAccessLesson(userId, lessonId))) {
+    throw new Error("FORBIDDEN");
+  }
   // Клиентский флаг «прошёл без единой ошибки» — как и весь ход урока,
   // доверяем клиенту (школьный проект). Строгое === true отсекает мусор.
   const perfect = opts?.perfect === true;
@@ -118,7 +122,18 @@ export async function completeLesson(
       where: {
         userId,
         isCompleted: true,
-        lesson: { categoryId: lesson.category.id },
+        lesson: {
+          categoryId: lesson.category.id,
+          isPublished: true,
+          OR: [
+            { groupRestrictions: { none: {} } },
+            {
+              groupRestrictions: {
+                some: { groupId: user.groupId ?? -1 },
+              },
+            },
+          ],
+        },
       },
     }),
   ]);
@@ -158,8 +173,9 @@ export async function checkAnswer(
   questionIndex: number,
   optionIndex: number,
 ): Promise<boolean> {
-  await requireUser();
+  const userId = await requireUser();
   lessonId = parse(IdSchema, lessonId);
+  if (!(await canAccessLesson(userId, lessonId))) return false;
   questionIndex = parse(z.number().int().min(0).max(49), questionIndex);
   optionIndex = parse(z.number().int().min(0).max(7), optionIndex);
 
@@ -183,6 +199,9 @@ export async function checkAnswer(
 export async function recordCorrectAnswer(lessonId: number): Promise<void> {
   const userId = await requireUser();
   lessonId = parse(IdSchema, lessonId);
+  if (!(await canAccessLesson(userId, lessonId))) {
+    throw new Error("FORBIDDEN");
+  }
 
   const lesson = await prisma.lesson.findUnique({ where: { id: lessonId } });
   if (!lesson) return;

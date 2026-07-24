@@ -3,8 +3,7 @@
 import { deleteCategory } from "@/lib/actions/categories";
 import { Button } from "@/components/ui/button";
 
-// Кнопка «Удалить» курса-модуля. Курс с уроками удалить нельзя — кнопка
-// дизейблится с подсказкой (сервер это тоже проверяет).
+// Удаление курса вместе с уроками требует явного подтверждения.
 export const DeleteButton = ({
   id,
   name,
@@ -14,12 +13,19 @@ export const DeleteButton = ({
   name: string;
   lessonCount: number;
 }) => {
-  const blocked = lessonCount > 0;
   return (
     <form
       action={deleteCategory}
       onSubmit={(e) => {
-        if (!confirm(`Удалить курс «${name}»? Это действие не отменить.`)) {
+        const details =
+          lessonCount > 0
+            ? `\n\nБудут удалены уроки: ${lessonCount}, а также прогресс учеников по ним.`
+            : "";
+        if (
+          !confirm(
+            `Удалить курс «${name}»?${details}\n\nЭто действие не отменить.`,
+          )
+        ) {
           e.preventDefault();
         }
       }}
@@ -29,12 +35,6 @@ export const DeleteButton = ({
         type="submit"
         variant="dangerOutline"
         size="sm"
-        disabled={blocked}
-        title={
-          blocked
-            ? `Внутри ${lessonCount} урок(ов) — сначала удали или перенеси их`
-            : undefined
-        }
       >
         Удалить
       </Button>

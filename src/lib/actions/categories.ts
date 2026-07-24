@@ -58,29 +58,40 @@ export async function saveCategory(
   };
 
   if (id === null) {
-    await prisma.category.create({ data });
+    const created = await prisma.category.create({ data });
+    revalidateCategoryPages();
+    redirect(`/admin/categories/${created.id}`);
   } else {
-    await prisma.category.update({ where: { id }, data });
+    await prisma.$transaction([
+      prisma.category.update({ where: { id }, data }),
+      prisma.categoryGroupAssignment.deleteMany({
+        where: { categoryId: id, group: { track: { not: data.track } } },
+      }),
+      prisma.lessonGroupAssignment.deleteMany({
+        where: {
+          lesson: { categoryId: id },
+          group: { track: { not: data.track } },
+        },
+      }),
+    ]);
   }
 
   revalidateCategoryPages();
   redirect("/admin/categories");
 }
 
-/**
- * Удалить пустой курс-модуль. Курс с уроками удалить нельзя — сначала
- * перенеси/удали уроки (кнопка в списке дизейблится, это второй рубеж).
- */
+/** Удалить курс, его уроки и прогресс по этим урокам одной транзакцией. */
 export async function deleteCategory(formData: FormData): Promise<void> {
   await requireAdmin();
 
   const id = parse(z.coerce.number().pipe(IdSchema), formData.get("id"));
 
-  const lessonCount = await prisma.lesson.count({ where: { categoryId: id } });
-  if (lessonCount > 0) {
-    throw new Error("BAD_REQUEST");
-  }
-
-  await prisma.category.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.userLessonProgress.deleteMany({
+      where: { lesson: { categoryId: id } },
+    }),
+    prisma.lesson.deleteMany({ where: { categoryId: id } }),
+    prisma.category.delete({ where: { id } }),
+  ]);
   revalidateCategoryPages();
 }

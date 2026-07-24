@@ -33,10 +33,31 @@ export async function advanceAchievements(
   userId: string,
   ctx: AchievementContext,
 ): Promise<UnlockedAchievement[]> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { groupId: true },
+  });
+  const groupId = user?.groupId ?? -1;
   const achievements = await prisma.achievement.findMany({
     where: { isActive: true },
     include: {
-      category: { select: { _count: { select: { lessons: true } } } },
+      category: {
+        select: {
+          _count: {
+            select: {
+              lessons: {
+                where: {
+                  isPublished: true,
+                  OR: [
+                    { groupRestrictions: { none: {} } },
+                    { groupRestrictions: { some: { groupId } } },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
     },
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });

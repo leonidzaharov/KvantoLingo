@@ -1,4 +1,4 @@
-
+АРХИВНЫЙ ЖУРНАЛ. Актуальная документация находится в README.md и docs/.
 > quantorium@0.1.0 dev
 > next dev
 

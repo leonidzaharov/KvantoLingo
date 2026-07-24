@@ -67,3 +67,6 @@ lectures/
 /test-results/
 /playwright-report/
 /e2e/.fixtures.json
+
+# Нелицензированные Rive-референсы: не часть продукта и не для публикации.
+/assets ux/

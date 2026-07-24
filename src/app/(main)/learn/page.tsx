@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { ACTIVE_COURSE_COOKIE } from "@/lib/active-course";
-import { getTrackFilter } from "@/lib/track-access";
+import {
+  categoryIsAccessible,
+  getLearningContext,
+} from "@/lib/course-access";
 import { FeedWrapper } from "@/components/feed-wrapper";
 import { StickyWrapper } from "@/components/sticky-wrapper";
 import { UserProgress } from "@/components/user-progress";
@@ -23,6 +26,10 @@ export default async function LearnPage() {
     redirect("/");
   }
   const userId = session.user.id;
+  const context = await getLearningContext(userId);
+  if (!context) {
+    redirect("/api/orphan-signout");
+  }
 
   // Активный курс — из cookie. Нет/битый → на экран выбора.
   const cookieStore = await cookies();
@@ -32,12 +39,11 @@ export default async function LearnPage() {
     redirect("/courses");
   }
 
-  const [user, track, category] = await Promise.all([
+  const [user, category] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, totalXp: true, currency: true },
     }),
-    getTrackFilter(userId),
     prisma.category.findUnique({
       where: { id: activeCourseId },
       select: {
@@ -45,7 +51,22 @@ export default async function LearnPage() {
         name: true,
         icon: true,
         track: true,
+        isPublished: true,
+        groupAccess: { select: { groupId: true } },
         lessons: {
+          where: context.isAdmin
+            ? undefined
+            : {
+                isPublished: true,
+                OR: [
+                  { groupRestrictions: { none: {} } },
+                  {
+                    groupRestrictions: {
+                      some: { groupId: context.groupId ?? -1 },
+                    },
+                  },
+                ],
+              },
           orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
           select: {
             id: true,
@@ -73,7 +94,13 @@ export default async function LearnPage() {
     redirect("/courses");
   }
   // Курс чужого направления (сменили группу, старый cookie) — к выбору.
-  if (track && category.track !== track) {
+  if (
+    !categoryIsAccessible(context, {
+      isPublished: category.isPublished,
+      track: category.track,
+      groupIds: category.groupAccess.map((item) => item.groupId),
+    })
+  ) {
     redirect("/courses");
   }
 
@@ -120,8 +147,6 @@ export default async function LearnPage() {
         <div className="relative flex flex-col items-center">
           {lessons.map((lesson, i) => {
             const isCurrent = lesson.id === activeLessonId;
-            const isLocked = !lesson.completed && !isCurrent;
-
             return (
               <LessonButton
                 key={lesson.id}
@@ -129,7 +154,7 @@ export default async function LearnPage() {
                 index={i}
                 totalCount={lessons.length - 1}
                 current={isCurrent}
-                locked={isLocked}
+                locked={false}
                 percentage={activeLessonPercentage}
               />
             );

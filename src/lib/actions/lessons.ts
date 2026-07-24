@@ -93,28 +93,24 @@ export async function saveLesson(
     select: { id: true },
   });
 
-  const shift = occupied
-    ? [
-        prisma.lesson.updateMany({
-          where: {
-            categoryId,
-            sortOrder: { gte: sortOrder },
-            ...(id !== null && { NOT: { id } }),
-          },
-          data: { sortOrder: { increment: 1 } },
-        }),
-      ]
-    : [];
-
-  const write =
-    id === null
-      ? prisma.lesson.create({ data })
-      : prisma.lesson.update({ where: { id }, data });
-
-  await prisma.$transaction([...shift, write]);
+  const saved = await prisma.$transaction(async (tx) => {
+    if (occupied) {
+      await tx.lesson.updateMany({
+        where: {
+          categoryId,
+          sortOrder: { gte: sortOrder },
+          ...(id !== null && { NOT: { id } }),
+        },
+        data: { sortOrder: { increment: 1 } },
+      });
+    }
+    return id === null
+      ? tx.lesson.create({ data })
+      : tx.lesson.update({ where: { id }, data });
+  });
 
   revalidateLessonPages();
-  redirect("/admin/lessons");
+  redirect(id === null ? `/admin/lessons/${saved.id}` : "/admin/lessons");
 }
 
 /**

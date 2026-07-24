@@ -1,12 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { canAccessLesson } from "@/lib/course-access";
 import { prisma } from "@/lib/db";
 import {
   parseLessonContent,
   sanitizeLessonContent,
 } from "@/lib/lesson-content";
-import { getTrackFilter } from "@/lib/track-access";
 
 import { QuestRunner } from "./QuestRunner";
 
@@ -16,43 +16,23 @@ type PageProps = {
 
 export default async function LessonPage({ params }: PageProps) {
   const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/");
-  }
+  if (!session?.user?.id) redirect("/");
   const userId = session.user.id;
 
   const { id } = await params;
   const lessonId = Number.parseInt(id, 10);
-  if (!Number.isFinite(lessonId) || lessonId <= 0) {
-    notFound();
-  }
+  if (!Number.isFinite(lessonId) || lessonId <= 0) notFound();
 
-  const [lesson, track] = await Promise.all([
+  const [lesson, allowed] = await Promise.all([
     prisma.lesson.findUnique({
       where: { id: lessonId },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        category: { select: { track: true } },
-      },
+      select: { id: true, title: true, content: true },
     }),
-    getTrackFilter(userId),
+    canAccessLesson(userId, lessonId),
   ]);
-  if (!lesson) {
-    notFound();
-  }
-  // Урок чужого направления по прямой ссылке — как будто его нет.
-  if (track && lesson.category.track !== track) {
-    notFound();
-  }
+  if (!lesson || !allowed) notFound();
 
-  // Разбор и валидация контента (теория + задания) — в общем модуле,
-  // тем же zod-описанием, каким админка его сохраняет.
   const parsed = parseLessonContent(lesson.content);
-
-  // Первое попадание на урок создаёт строку прогресса → на /learn урок
-  // становится «текущим». alreadyCompleted различает зачёт и тренировку.
   const progress = await prisma.userLessonProgress.upsert({
     where: { userId_lessonId: { userId, lessonId } },
     create: { userId, lessonId, totalQuestions: parsed.questions.length },
@@ -60,8 +40,6 @@ export default async function LessonPage({ params }: PageProps) {
   });
 
   return (
-    // В браузер уходит контент БЕЗ ответов: correctIndex и referenceSolution
-    // вырезаны, проверку вариантов делает server action checkAnswer.
     <QuestRunner
       lessonId={lesson.id}
       title={lesson.title}

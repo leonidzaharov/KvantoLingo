@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ACTIVE_COURSE_COOKIE } from "@/lib/active-course";
 import { requireUser } from "@/lib/server-guard";
-import { getTrackFilter } from "@/lib/track-access";
+import { canAccessCategory } from "@/lib/course-access";
 
 /**
  * Делает категорию активным курсом: пишет её id в cookie и ведёт на /learn.
@@ -23,14 +23,13 @@ export async function setActiveCourse(categoryId: number): Promise<void> {
   }
   const category = await prisma.category.findUnique({
     where: { id: categoryId },
-    select: { id: true, track: true },
+    select: { id: true },
   });
   if (!category) {
     throw new Error("BAD_REQUEST");
   }
   // Курс чужого направления выбрать нельзя (даже подделанным запросом).
-  const track = await getTrackFilter(userId);
-  if (track && category.track !== track) {
+  if (!(await canAccessCategory(userId, categoryId))) {
     throw new Error("FORBIDDEN");
   }
 

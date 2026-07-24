@@ -203,13 +203,19 @@ async function main(): Promise<void> {
 
   // Тестовый ученик (PIN: 1234) — оставляем для удобной локальной авторизации.
   const pinHash = await bcrypt.hash("1234", 10);
+  const demoGroup = await prisma.group.upsert({
+    where: { name: "demo-01" },
+    update: { track: "intro" },
+    create: { name: "demo-01", track: "intro" },
+  });
   const user = await prisma.user.upsert({
     where: { id: "user-123" },
-    update: {},
+    update: { groupId: demoGroup.id },
     create: {
       id: "user-123",
       name: "Иван Иванов",
       pinHash,
+      groupId: demoGroup.id,
       totalXp: 150,
       level: 2,
       currency: 50,
@@ -222,6 +228,8 @@ async function main(): Promise<void> {
       data: {
         name: category.meta.name,
         icon: category.meta.icon ?? null,
+        isPublished: true,
+        groupAccess: { create: { groupId: demoGroup.id } },
       },
     });
     for (const lesson of category.lessons) {
@@ -232,6 +240,7 @@ async function main(): Promise<void> {
           content: JSON.stringify({ questions: lesson.questions }),
           xpReward: lesson.xpReward,
           sortOrder: lesson.sortOrder,
+          isPublished: true,
         },
       });
     }

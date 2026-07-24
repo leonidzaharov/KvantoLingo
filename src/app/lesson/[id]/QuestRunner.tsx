@@ -35,6 +35,7 @@ type Props = {
   content: SafeLessonContent;
   /** Урок уже пройден раньше → это «тренировка», XP повторно не начислится. */
   alreadyCompleted: boolean;
+  previewMode?: boolean;
 };
 
 function fireConfetti() {
@@ -57,6 +58,7 @@ export function QuestRunner({
   title,
   content,
   alreadyCompleted,
+  previewMode = false,
 }: Props) {
   const questions = content.questions;
   const total = questions.length;
@@ -117,6 +119,20 @@ export function QuestRunner({
   };
 
   const finalize = () => {
+    if (previewMode) {
+      setResult({
+        gainedXp: 0,
+        gainedCoins: 0,
+        totalXp: 0,
+        level: 0,
+        leveledUp: false,
+        lastActiveDate: new Date(),
+        firstCompletion: false,
+        unlockedAchievements: [],
+      });
+      fireConfetti();
+      return;
+    }
     startTransition(async () => {
       try {
         // Перфект = ни одной потерянной жизни. Урок без заданий (total === 0)
@@ -139,7 +155,7 @@ export function QuestRunner({
     setStatus("correct");
     setCompletedCount((c) => c + 1);
     // Пошаговый прогресс фиксируем в фоне (только при первом прохождении).
-    if (!alreadyCompleted) {
+    if (!alreadyCompleted && !previewMode) {
       void recordCorrectAnswer(lessonId).catch((err) =>
         console.error("recordCorrectAnswer failed", err),
       );
@@ -225,14 +241,20 @@ export function QuestRunner({
           <div className="text-6xl lg:text-7xl">🎉</div>
 
           <h1 className="text-lg font-bold text-neutral-700 lg:text-3xl">
-            Отлично! <br /> Урок пройден.
+            {previewMode ? "Предпросмотр завершён" : "Отлично! Урок пройден."}
           </h1>
 
-          <div className="flex w-full items-center gap-x-4">
-            <ResultCard variant="points" value={result.gainedXp} />
-            <ResultCard variant="coins" value={result.gainedCoins} />
-            <ResultCard variant="hearts" value={hearts} />
-          </div>
+          {previewMode ? (
+            <p className="text-neutral-500">
+              Прогресс, XP, монеты и достижения не сохранялись.
+            </p>
+          ) : (
+            <div className="flex w-full items-center gap-x-4">
+              <ResultCard variant="points" value={result.gainedXp} />
+              <ResultCard variant="coins" value={result.gainedCoins} />
+              <ResultCard variant="hearts" value={hearts} />
+            </div>
+          )}
 
           {result.leveledUp && (
             <p className="text-base font-bold text-green-600 lg:text-lg">
@@ -244,7 +266,9 @@ export function QuestRunner({
         <Footer
           status="completed"
           onCheck={() => {
-            window.location.href = "/learn";
+            window.location.href = previewMode
+              ? `/admin/lessons/${lessonId}`
+              : "/learn";
           }}
         />
 
@@ -260,7 +284,11 @@ export function QuestRunner({
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[720px] px-6 py-8">
             <p className="text-center text-xs font-bold uppercase tracking-wide text-neutral-400 lg:text-start">
-              {alreadyCompleted ? "Тренировка · " : ""}
+              {previewMode
+                ? "Предпросмотр · "
+                : alreadyCompleted
+                  ? "Тренировка · "
+                  : ""}
               {title}
             </p>
             <Markdown>{content.theory}</Markdown>

@@ -19,6 +19,10 @@ export const E2E_PIN = "1234";
 export const E2E_STUDENT = "Тест Ученик";
 export const E2E_GROUP = "e2e-01";
 export const E2E_LESSON_TITLE = "Тестовый урок";
+export const E2E_ADMIN = "Тест Наставник";
+export const E2E_ADMIN_PIN = "12345678";
+export const E2E_COPY_COURSE = "HTML — копия";
+export const E2E_COPY_LESSON = "Урок копии";
 
 /** Урок с теорией и одним вопросом — минимум, чтобы пройти его до конца. */
 const LESSON_CONTENT = JSON.stringify({
@@ -45,7 +49,10 @@ export function sandboxUrl(): string {
   return url.toString();
 }
 
-export async function createSandbox(): Promise<{ lessonId: number }> {
+export async function createSandbox(): Promise<{
+  lessonId: number;
+  copyCourseId: number;
+}> {
   const client = new pg.Client({ connectionString: baseUrl() });
   await client.connect();
 
@@ -71,12 +78,27 @@ export async function createSandbox(): Promise<{ lessonId: number }> {
       [E2E_GROUP],
     );
     const { rows: category } = await client.query(
-      `INSERT INTO "Category" (name, icon, track) VALUES ('E2E-курс', '🧪', 'intro') RETURNING id`,
+      `INSERT INTO "Category" (name, icon, track, "isPublished")
+       VALUES ('E2E-курс', '🧪', 'intro', true) RETURNING id`,
     );
     const { rows: lesson } = await client.query(
-      `INSERT INTO "Lesson" (title, "categoryId", content, "xpReward", "coinReward", "sortOrder")
-       VALUES ($1, $2, $3, 20, 5, 1) RETURNING id`,
+      `INSERT INTO "Lesson" (title, "categoryId", content, "xpReward", "coinReward", "sortOrder", "isPublished")
+       VALUES ($1, $2, $3, 20, 5, 1, true) RETURNING id`,
       [E2E_LESSON_TITLE, category[0].id, LESSON_CONTENT],
+    );
+    await client.query(
+      `INSERT INTO "CategoryGroupAssignment" ("categoryId", "groupId") VALUES ($1, $2)`,
+      [category[0].id, group[0].id],
+    );
+    const { rows: copyCategory } = await client.query(
+      `INSERT INTO "Category" (name, icon, track, "isPublished")
+       VALUES ($1, '📘', 'intro', false) RETURNING id`,
+      [E2E_COPY_COURSE],
+    );
+    await client.query(
+      `INSERT INTO "Lesson" (title, "categoryId", content, "xpReward", "coinReward", "sortOrder", "isPublished")
+       VALUES ($1, $2, $3, 10, 5, 1, false)`,
+      [E2E_COPY_LESSON, copyCategory[0].id, LESSON_CONTENT],
     );
 
     // Ачивка «первый урок»: цель 1 → откроется ровно на этом уроке.
@@ -96,8 +118,17 @@ export async function createSandbox(): Promise<{ lessonId: number }> {
        VALUES (gen_random_uuid(), $1, $2, $3, false)`,
       [E2E_STUDENT, pinHash, group[0].id],
     );
+    const adminPinHash = await bcrypt.hash(E2E_ADMIN_PIN, 10);
+    await client.query(
+      `INSERT INTO "User" (id, name, "pinHash", "isAdmin")
+       VALUES (gen_random_uuid(), $1, $2, true)`,
+      [E2E_ADMIN, adminPinHash],
+    );
 
-    return { lessonId: lesson[0].id };
+    return {
+      lessonId: lesson[0].id,
+      copyCourseId: copyCategory[0].id,
+    };
   } finally {
     await client.end();
   }

@@ -9,10 +9,10 @@ import { createSandbox } from "./sandbox";
 // спеки читают его оттуда.
 export default async function globalSetup() {
   console.log("\n[e2e] Готовлю схему-песочницу…");
-  const { lessonId } = await createSandbox();
+  const fixtures = await createSandbox();
   await writeFile(
     path.join(process.cwd(), "e2e", ".fixtures.json"),
-    JSON.stringify({ lessonId }),
+    JSON.stringify(fixtures),
   );
-  console.log(`[e2e] Песочница готова, урок id=${lessonId}\n`);
+  console.log(`[e2e] Песочница готова, урок id=${fixtures.lessonId}\n`);
 }
