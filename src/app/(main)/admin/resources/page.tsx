@@ -8,6 +8,8 @@ import { requireAdminOr404 } from "@/lib/server-guard";
 import { AdminNav } from "../admin-nav";
 import { DeleteButton } from "./delete-button";
 import { TYPE_LABELS } from "./type-labels";
+import { PublicationControl } from "../publication-controls";
+import { toggleResourcePublication } from "@/lib/actions/resources";
 
 // Админка «Интересного»: список материалов + добавление/правка/удаление.
 // Доступ только наставнику (isAdmin) — остальным 404.
@@ -17,6 +19,7 @@ export default async function AdminResourcesPage() {
   // Та же сортировка, что на /interesting, — админ видит список 1-в-1.
   const resources = await prisma.resource.findMany({
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    include: { groupAccess: { select: { groupId: true } } },
   });
 
   return (
@@ -64,7 +67,16 @@ export default async function AdminResourcesPage() {
                   <p className="truncate font-bold text-neutral-700">
                     {resource.title}
                   </p>
+                  <p className="text-xs font-medium text-neutral-400">
+                    {resource.isPublished ? "Опубликован" : "Черновик"} ·{" "}
+                    {resource.groupAccess.length} групп
+                  </p>
                 </div>
+                <PublicationControl
+                  id={resource.id}
+                  isPublished={resource.isPublished}
+                  action={toggleResourcePublication}
+                />
                 <Button variant="secondaryOutline" size="sm" asChild>
                   <Link href={`/admin/resources/${resource.id}`}>Изменить</Link>
                 </Button>

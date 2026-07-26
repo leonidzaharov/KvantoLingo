@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
+import { canAccessResource } from "@/lib/resource-access";
 import { IdSchema, parse, requireUser } from "@/lib/server-guard";
 
 export type StudyResourceResult = {
@@ -22,6 +23,9 @@ export async function studyResource(
 ): Promise<StudyResourceResult> {
   const userId = await requireUser();
   resourceId = parse(IdSchema, resourceId);
+  if (!(await canAccessResource(userId, resourceId))) {
+    throw new Error("FORBIDDEN");
+  }
 
   const resource = await prisma.resource.findUnique({
     where: { id: resourceId },

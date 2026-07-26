@@ -8,7 +8,13 @@ export default async function NewResourcePage() {
   await requireAdminOr404();
 
   // Новый материал — в конец списка: максимум sortOrder + 1.
-  const last = await prisma.resource.aggregate({ _max: { sortOrder: true } });
+  const [last, groups] = await Promise.all([
+    prisma.resource.aggregate({ _max: { sortOrder: true } }),
+    prisma.group.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
   const defaultSortOrder = (last._max.sortOrder ?? -1) + 1;
 
   return (
@@ -17,7 +23,7 @@ export default async function NewResourcePage() {
         <h1 className="my-4 text-2xl font-bold text-neutral-700">
           Новый материал
         </h1>
-        <ResourceForm defaultSortOrder={defaultSortOrder} />
+        <ResourceForm defaultSortOrder={defaultSortOrder} groups={groups} />
       </div>
     </div>
   );

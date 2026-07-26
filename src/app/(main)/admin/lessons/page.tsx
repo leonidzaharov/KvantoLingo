@@ -132,6 +132,9 @@ export default async function AdminLessonsPage({ searchParams }: PageProps) {
                             <p className="text-xs font-bold text-neutral-400">
                               {hasTheory ? "теория · " : ""}
                               {content.questions.length} задан.
+                              {content.bonusQuestions.length > 0
+                                ? ` · ⭐ ${content.bonusQuestions.length}`
+                                : ""}
                             </p>
                           </div>
                           <span

@@ -23,6 +23,8 @@ export const E2E_ADMIN = "Тест Наставник";
 export const E2E_ADMIN_PIN = "12345678";
 export const E2E_COPY_COURSE = "HTML — копия";
 export const E2E_COPY_LESSON = "Урок копии";
+export const E2E_VISIBLE_RESOURCE = "Материал группы e2e";
+export const E2E_HIDDEN_RESOURCE = "Скрытый материал другой группы";
 
 /** Урок с теорией и одним вопросом — минимум, чтобы пройти его до конца. */
 const LESSON_CONTENT = JSON.stringify({
@@ -31,6 +33,14 @@ const LESSON_CONTENT = JSON.stringify({
     {
       prompt: "Сколько будет 2 + 2?",
       options: ["3", "4", "5"],
+      correctIndex: 1,
+    },
+  ],
+  bonusQuestions: [
+    {
+      type: "choice",
+      prompt: "Сколько будет 6 × 7?",
+      options: ["36", "42", "49"],
       correctIndex: 1,
     },
   ],
@@ -89,6 +99,20 @@ export async function createSandbox(): Promise<{
     await client.query(
       `INSERT INTO "CategoryGroupAssignment" ("categoryId", "groupId") VALUES ($1, $2)`,
       [category[0].id, group[0].id],
+    );
+    const { rows: visibleResource } = await client.query(
+      `INSERT INTO "Resource" (type, title, body, "coinReward", "sortOrder", "isPublished")
+       VALUES ('note', $1, 'Видно тестовой группе', 1, 1, true) RETURNING id`,
+      [E2E_VISIBLE_RESOURCE],
+    );
+    await client.query(
+      `INSERT INTO "ResourceGroupAssignment" ("resourceId", "groupId") VALUES ($1, $2)`,
+      [visibleResource[0].id, group[0].id],
+    );
+    await client.query(
+      `INSERT INTO "Resource" (type, title, body, "coinReward", "sortOrder", "isPublished")
+       VALUES ('note', $1, 'Не назначено тестовой группе', 1, 2, true)`,
+      [E2E_HIDDEN_RESOURCE],
     );
     const { rows: copyCategory } = await client.query(
       `INSERT INTO "Category" (name, icon, track, "isPublished")

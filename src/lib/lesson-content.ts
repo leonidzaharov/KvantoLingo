@@ -3,9 +3,10 @@ import { z } from "zod";
 // ============================================================
 // Формат Lesson.content (JSON-строка в БД).
 //
-// Версия 2: { theory?: string, questions: [...] }
-//   theory   — markdown-гайд, показывается перед вопросами;
-//   questions — вопрос с вариантами (choice) или задание с кодом (code).
+// Версия 3: { theory?: string, questions: [...], bonusQuestions?: [...] }
+//   theory        — markdown-гайд, показывается перед вопросами;
+//   questions     — обязательные вопросы и кодовые задания;
+//   bonusQuestions — необязательные задания со звёздочкой после основной части.
 //
 // Обратная совместимость: старые уроки хранят вопросы без поля type —
 // такие считаются choice. Отсутствие theory = урок без теории.
@@ -59,6 +60,7 @@ export const LessonQuestionSchema = z.union([
 export const LessonContentSchema = z.object({
   theory: z.string().max(50000).default(""),
   questions: z.array(LessonQuestionSchema).max(50).default([]),
+  bonusQuestions: z.array(LessonQuestionSchema).max(20).default([]),
 });
 
 export type ChoiceQuestion = z.infer<typeof ChoiceQuestionSchema>;
@@ -79,7 +81,7 @@ export function parseLessonContent(raw: string): LessonContent {
   } catch {
     /* битый JSON */
   }
-  return { theory: "", questions: [] };
+  return { theory: "", questions: [], bonusQuestions: [] };
 }
 
 /** Тип вопроса с учётом старого формата (нет type = choice). */
@@ -117,7 +119,24 @@ export type SafeLessonQuestion = SafeChoiceQuestion | SafeCodeQuestion;
 export type SafeLessonContent = {
   theory: string;
   questions: SafeLessonQuestion[];
+  bonusQuestions: SafeLessonQuestion[];
 };
+
+function sanitizeQuestions(
+  questions: LessonQuestion[],
+): SafeLessonQuestion[] {
+  return questions.map((q): SafeLessonQuestion =>
+    q.type === "code"
+      ? {
+          type: "code",
+          prompt: q.prompt,
+          language: q.language,
+          starterCode: q.starterCode,
+          expectedOutput: q.expectedOutput,
+        }
+      : { type: "choice", prompt: q.prompt, options: q.options },
+  );
+}
 
 /** Вырезает ответы из контента перед отправкой на клиент. */
 export function sanitizeLessonContent(
@@ -125,16 +144,7 @@ export function sanitizeLessonContent(
 ): SafeLessonContent {
   return {
     theory: content.theory,
-    questions: content.questions.map((q): SafeLessonQuestion =>
-      q.type === "code"
-        ? {
-            type: "code",
-            prompt: q.prompt,
-            language: q.language,
-            starterCode: q.starterCode,
-            expectedOutput: q.expectedOutput,
-          }
-        : { type: "choice", prompt: q.prompt, options: q.options },
-    ),
+    questions: sanitizeQuestions(content.questions),
+    bonusQuestions: sanitizeQuestions(content.bonusQuestions),
   };
 }

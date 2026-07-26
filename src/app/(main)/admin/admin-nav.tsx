@@ -8,7 +8,7 @@ const SECTIONS = [
   { key: "groups", href: "/admin/groups", label: "Группы" },
   { key: "achievements", href: "/admin/achievements", label: "Ачивки" },
   { key: "resources", href: "/admin/resources", label: "Интересное" },
-  { key: "activity", href: "/admin/activity", label: "Активность" },
+  { key: "activity", href: "/admin/activity", label: "Текущий урок" },
 ] as const;
 
 type SectionKey = (typeof SECTIONS)[number]["key"];

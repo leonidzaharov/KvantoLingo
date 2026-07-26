@@ -28,6 +28,7 @@ const prisma = new PrismaClient({ adapter });
 
 // Стартовые материалы. sortOrder задаёт порядок на странице (меньше — выше),
 // coinReward — монеты за «Изучил» (тарифы: совет 1 / Scratch 2 / видео 3).
+// Стартовый набор публикуется и назначается всем существующим группам.
 const RESOURCES = [
   {
     type: "video",
@@ -36,6 +37,7 @@ const RESOURCES = [
     url: "M7lc1UVf-VE", // ID видео YouTube (после v= в ссылке)
     coinReward: 3,
     sortOrder: 0,
+    isPublished: true,
   },
   {
     type: "scratch",
@@ -44,6 +46,7 @@ const RESOURCES = [
     url: "10128407", // ID проекта из ссылки scratch.mit.edu/projects/<ID>
     coinReward: 2,
     sortOrder: 1,
+    isPublished: true,
   },
   {
     type: "article",
@@ -52,6 +55,7 @@ const RESOURCES = [
     url: "https://scratch.mit.edu",
     coinReward: 1,
     sortOrder: 2,
+    isPublished: true,
   },
   {
     type: "note",
@@ -59,6 +63,7 @@ const RESOURCES = [
     body: "На каникулах не обязательно проходить уроки каждый день — лучше выбери один проект из «Интересного» и попробуй сделать что-то своё. Эксперименты важнее серий!",
     coinReward: 1,
     sortOrder: 3,
+    isPublished: true,
   },
 ];
 
@@ -73,6 +78,21 @@ async function main() {
   }
 
   await prisma.resource.createMany({ data: RESOURCES });
+  const [resources, groups] = await Promise.all([
+    prisma.resource.findMany({ select: { id: true } }),
+    prisma.group.findMany({ select: { id: true } }),
+  ]);
+  if (resources.length > 0 && groups.length > 0) {
+    await prisma.resourceGroupAssignment.createMany({
+      data: resources.flatMap((resource) =>
+        groups.map((group) => ({
+          resourceId: resource.id,
+          groupId: group.id,
+        })),
+      ),
+      skipDuplicates: true,
+    });
+  }
   console.log(`✅ Добавлено материалов: ${RESOURCES.length}`);
 }
 

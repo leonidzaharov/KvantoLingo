@@ -13,6 +13,10 @@ import { computeLessonRewards } from "@/lib/achievements-logic";
 import { IdSchema, parse, requireUser } from "@/lib/server-guard";
 import { calculateLevel, countQuestions } from "@/lib/gamification-logic";
 import { canAccessLesson } from "@/lib/course-access";
+import {
+  markClassroomLessonCompleted,
+  recordClassroomAttempt,
+} from "@/lib/classroom-progress";
 
 export type CompleteLessonResult = {
   gainedXp: number;
@@ -77,7 +81,8 @@ export async function completeLesson(
     calculateLevel,
   );
 
-  const totalQuestions = countQuestions(lesson.content);
+  const parsedContent = parseLessonContent(lesson.content);
+  const totalQuestions = parsedContent.questions.length;
 
   const [, updated] = await prisma.$transaction([
     prisma.userLessonProgress.upsert({
@@ -148,6 +153,13 @@ export async function completeLesson(
     perfectDelta: firstCompletion && perfect ? 1 : 0,
   });
 
+  await markClassroomLessonCompleted({
+    userId,
+    lessonId,
+    totalQuestions,
+    bonusTotalQuestions: parsedContent.bonusQuestions.length,
+  });
+
   revalidatePath("/learn");
   revalidatePath(`/lesson/${lessonId}`);
 
@@ -172,12 +184,14 @@ export async function checkAnswer(
   lessonId: number,
   questionIndex: number,
   optionIndex: number,
+  section: "core" | "bonus" = "core",
 ): Promise<boolean> {
   const userId = await requireUser();
   lessonId = parse(IdSchema, lessonId);
   if (!(await canAccessLesson(userId, lessonId))) return false;
   questionIndex = parse(z.number().int().min(0).max(49), questionIndex);
   optionIndex = parse(z.number().int().min(0).max(7), optionIndex);
+  section = parse(z.enum(["core", "bonus"]), section);
 
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
@@ -185,10 +199,40 @@ export async function checkAnswer(
   });
   if (!lesson) return false;
 
-  const question = parseLessonContent(lesson.content).questions[questionIndex];
+  const content = parseLessonContent(lesson.content);
+  const questions =
+    section === "bonus" ? content.bonusQuestions : content.questions;
+  const question = questions[questionIndex];
   if (!question || question.type === "code") return false;
 
-  return question.correctIndex === optionIndex;
+  const correct = question.correctIndex === optionIndex;
+  await Promise.all([
+    recordClassroomAttempt({
+      userId,
+      lessonId,
+      phase: section === "bonus" ? "bonus" : "tasks",
+      questionIndex,
+      totalQuestions: content.questions.length,
+      bonusTotalQuestions: content.bonusQuestions.length,
+      section,
+      correct,
+    }),
+    ...(!correct && section === "core"
+      ? [
+          prisma.userLessonProgress.upsert({
+            where: { userId_lessonId: { userId, lessonId } },
+            create: {
+              userId,
+              lessonId,
+              totalQuestions: content.questions.length,
+              wrongAttempts: 1,
+            },
+            update: { wrongAttempts: { increment: 1 } },
+          }),
+        ]
+      : []),
+  ]);
+  return correct;
 }
 
 /**

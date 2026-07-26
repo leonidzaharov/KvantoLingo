@@ -19,9 +19,16 @@ export default async function EditResourcePage({ params }: PageProps) {
     notFound();
   }
 
-  const resource = await prisma.resource.findUnique({
-    where: { id: numericId },
-  });
+  const [resource, groups] = await Promise.all([
+    prisma.resource.findUnique({
+      where: { id: numericId },
+      include: { groupAccess: { select: { groupId: true } } },
+    }),
+    prisma.group.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
   if (!resource) {
     notFound();
   }
@@ -32,7 +39,11 @@ export default async function EditResourcePage({ params }: PageProps) {
         <h1 className="my-4 text-2xl font-bold text-neutral-700">
           Правка материала
         </h1>
-        <ResourceForm resource={resource} />
+        <ResourceForm
+          resource={resource}
+          groups={groups}
+          selectedGroupIds={resource.groupAccess.map((item) => item.groupId)}
+        />
       </div>
     </div>
   );

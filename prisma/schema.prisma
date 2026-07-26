@@ -35,6 +35,8 @@ model Group {
   students           User[]
   categoryAccess     CategoryGroupAssignment[]
   lessonRestrictions LessonGroupAssignment[]
+  resourceAccess     ResourceGroupAssignment[]
+  classSessions      ClassSession[]
 }
 
 /// Профиль ученика. Аутентификация через 4-значный PIN-код.
@@ -56,11 +58,13 @@ model User {
   showcaseAchievementId Int?
 
   // Связи
-  group               Group?               @relation(fields: [groupId], references: [id])
-  showcaseAchievement Achievement?         @relation("Showcase", fields: [showcaseAchievementId], references: [id], onDelete: SetNull)
+  group               Group?                    @relation(fields: [groupId], references: [id])
+  showcaseAchievement Achievement?              @relation("Showcase", fields: [showcaseAchievementId], references: [id], onDelete: SetNull)
   achievements        UserAchievement[]
   lessonProgress      UserLessonProgress[]
   studiedResources    UserResource[]
+  classroomProgress   SessionStudentProgress[]
+  classroomQuestions  SessionQuestionProgress[]
 }
 
 /// Категория уроков — модуль программы (например: «Scratch», «Python»).
@@ -92,6 +96,7 @@ model Lesson {
   category          Category                @relation(fields: [categoryId], references: [id])
   progress          UserLessonProgress[]
   groupRestrictions LessonGroupAssignment[]
+  classSessions     ClassSession[]
 }
 
 /// Явное назначение курса группе. Пустой список означает, что курс не назначен никому.
@@ -139,7 +144,82 @@ model UserLessonProgress {
 }
 
 // ============================================================
-// ДОМЕН 2: Достижения
+// ДОМЕН 2: Очные занятия и живая аналитика
+// ============================================================
+
+/// Фаза, которую наставник видит на дашборде текущего занятия.
+enum ClassSessionPhase {
+  theory
+  tasks
+  bonus
+  completed
+}
+
+/// Основное или дополнительное задание со звёздочкой.
+enum LessonTaskSection {
+  core
+  bonus
+}
+
+/// Одно очное занятие конкретной группы по конкретному уроку.
+/// Исторический прогресс ученика хранится отдельно в UserLessonProgress.
+model ClassSession {
+  id        Int       @id @default(autoincrement())
+  groupId   Int
+  lessonId  Int
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  group     Group                     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  lesson    Lesson                    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  students  SessionStudentProgress[]
+  questions SessionQuestionProgress[]
+
+  @@index([groupId, endedAt])
+  @@index([groupId, lessonId, endedAt])
+}
+
+/// Текущее положение ученика внутри активного очного занятия.
+model SessionStudentProgress {
+  sessionId            Int
+  userId               String
+  phase                ClassSessionPhase @default(theory)
+  currentQuestionIndex Int               @default(0)
+  answeredCount        Int               @default(0)
+  totalQuestions       Int               @default(0)
+  bonusAnsweredCount   Int               @default(0)
+  bonusTotalQuestions  Int               @default(0)
+  wrongAttempts        Int               @default(0)
+  lastActivityAt       DateTime          @default(now())
+  completedAt          DateTime?
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, userId])
+  @@index([userId, lastActivityAt])
+}
+
+/// Счётчики по каждой задаче текущего занятия. Они позволяют показать,
+/// на какой задаче застряли дети, не сохраняя их ответы или исходный код.
+model SessionQuestionProgress {
+  sessionId     Int
+  userId        String
+  section       LessonTaskSection
+  questionIndex Int
+  wrongAttempts Int               @default(0)
+  isSolved      Boolean           @default(false)
+  updatedAt     DateTime          @updatedAt
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, userId, section, questionIndex])
+  @@index([sessionId, section, questionIndex])
+}
+
+// ============================================================
+// ДОМЕН 3: Достижения
 // ============================================================
 
 /// Тип условия ачивки — какую метрику ученика сравниваем с целью.
@@ -191,7 +271,7 @@ model UserAchievement {
 }
 
 // ============================================================
-// ДОМЕН 3: Безопасность входа
+// ДОМЕН 4: Безопасность входа
 // ============================================================
 
 /// Журнал попыток логина для rate-limit'а 4-значного PIN.
@@ -211,7 +291,7 @@ model LoginAttempt {
 }
 
 // ============================================================
-// ДОМЕН 4: Блок «Интересное» (внеурочные материалы)
+// ДОМЕН 5: Блок «Интересное» (внеурочные материалы)
 // ============================================================
 
 /// Тип материала — определяет, как карточка рендерится на /interesting.
@@ -234,9 +314,24 @@ model Resource {
   body        String? // текст для type = note
   coinReward  Int          @default(1) // монет за «Изучил» (разово; обычно 1/2/3 по типу)
   sortOrder   Int          @default(0) // порядок отображения (меньше — выше)
+  isPublished Boolean      @default(false)
   createdAt   DateTime     @default(now())
 
-  studiedBy UserResource[]
+  studiedBy   UserResource[]
+  groupAccess ResourceGroupAssignment[]
+}
+
+/// Явное назначение карточки «Интересного» группе.
+/// Пустой список означает, что материал не назначен ни одной группе.
+model ResourceGroupAssignment {
+  resourceId Int
+  groupId    Int
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([resourceId, groupId])
+  @@index([groupId])
 }
 
 /// Отметка «ученик изучил материал». Уникальность пары гарантирует,

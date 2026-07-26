@@ -14,6 +14,10 @@ import {
   recordCorrectAnswer,
   type CompleteLessonResult,
 } from "@/lib/actions/gamification";
+import {
+  recordCodeAttempt,
+  reportLessonPosition,
+} from "@/lib/actions/classroom";
 import { questionKind, type SafeLessonContent } from "@/lib/lesson-content";
 import { outputsMatch } from "@/lib/output-match";
 import { prewarmCode, runCode } from "@/lib/code-runner";
@@ -60,14 +64,18 @@ export function QuestRunner({
   alreadyCompleted,
   previewMode = false,
 }: Props) {
-  const questions = content.questions;
-  const total = questions.length;
+  const coreQuestions = content.questions;
+  const bonusQuestions = content.bonusQuestions;
+  const coreTotal = coreQuestions.length;
   const hasTheory = content.theory.trim() !== "";
 
-  // Урок из двух частей: сначала теория (если есть), потом задания.
-  const [phase, setPhase] = useState<"theory" | "tasks">(
+  // Урок: теория → обязательные задачи → необязательные задачи со звёздочкой.
+  const [phase, setPhase] = useState<"theory" | "tasks" | "bonus">(
     hasTheory ? "theory" : "tasks",
   );
+  const questions = phase === "bonus" ? bonusQuestions : coreQuestions;
+  const total = questions.length;
+  const section = phase === "bonus" ? "bonus" : "core";
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | undefined>(
     undefined,
@@ -78,6 +86,7 @@ export function QuestRunner({
   const [hearts, setHearts] = useState(MAX_HEARTS);
   const [completedCount, setCompletedCount] = useState(0);
   const [result, setResult] = useState<CompleteLessonResult | null>(null);
+  const [bonusFinished, setBonusFinished] = useState(false);
   const [toasts, setToasts] = useState<UnlockedAchievement[]>([]);
   const [isPending, startTransition] = useTransition();
 
@@ -95,10 +104,42 @@ export function QuestRunner({
   // Если в уроке есть код-задания — начинаем греть их движки заранее,
   // пока ученик читает теорию/отвечает на вопросы (тяжёлый только Python).
   useEffect(() => {
-    for (const q of questions) {
+    for (const q of [...coreQuestions, ...bonusQuestions]) {
       if (q.type === "code") prewarmCode(q.language);
     }
-  }, [questions]);
+  }, [coreQuestions, bonusQuestions]);
+
+  // Наставник видит позицию максимум через несколько секунд. Heartbeat нужен,
+  // чтобы отличать открытый урок от давно оставленной вкладки.
+  useEffect(() => {
+    if (
+      previewMode ||
+      bonusFinished ||
+      (result !== null && phase !== "bonus")
+    ) {
+      return;
+    }
+    const report = () => {
+      void reportLessonPosition(
+        lessonId,
+        phase,
+        phase === "theory" ? 0 : activeIndex,
+      ).catch(() => {
+        // При уходе со страницы браузер штатно отменяет этот необязательный
+        // heartbeat. Учебный прогресс от него не зависит.
+      });
+    };
+    report();
+    const timer = window.setInterval(report, 10_000);
+    return () => window.clearInterval(timer);
+  }, [
+    activeIndex,
+    bonusFinished,
+    lessonId,
+    phase,
+    previewMode,
+    result,
+  ]);
 
   const dismissToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -138,7 +179,7 @@ export function QuestRunner({
         // Перфект = ни одной потерянной жизни. Урок без заданий (total === 0)
         // перфектом не считается — там нечего было проходить без ошибок.
         const res = await completeLesson(lessonId, {
-          perfect: total > 0 && hearts === MAX_HEARTS,
+          perfect: coreTotal > 0 && hearts === MAX_HEARTS,
         });
         setResult(res);
         if (res.unlockedAchievements.length > 0) {
@@ -155,7 +196,7 @@ export function QuestRunner({
     setStatus("correct");
     setCompletedCount((c) => c + 1);
     // Пошаговый прогресс фиксируем в фоне (только при первом прохождении).
-    if (!alreadyCompleted && !previewMode) {
+    if (section === "core" && !alreadyCompleted && !previewMode) {
       void recordCorrectAnswer(lessonId).catch((err) =>
         console.error("recordCorrectAnswer failed", err),
       );
@@ -174,7 +215,12 @@ export function QuestRunner({
     if (status === "correct") {
       const isLast = activeIndex === total - 1;
       if (isLast) {
-        finalize();
+        if (phase === "bonus") {
+          setBonusFinished(true);
+          fireConfetti();
+        } else {
+          finalize();
+        }
       } else {
         setActiveIndex((i) => i + 1);
         setStatus("none");
@@ -197,11 +243,21 @@ export function QuestRunner({
         // по краям не считаются ошибкой (см. output-match.ts).
         const passed =
           res.ok && outputsMatch(res.output, challenge.expectedOutput);
+        if (!previewMode) {
+          void recordCodeAttempt(
+            lessonId,
+            section,
+            activeIndex,
+            passed,
+          ).catch((err) => console.error("recordCodeAttempt failed", err));
+        }
         if (passed) {
           markCorrect();
         } else {
           setStatus("wrong");
-          setHearts((h) => Math.max(0, h - 1));
+          if (section === "core") {
+            setHearts((h) => Math.max(0, h - 1));
+          }
           setCodeFailsByIndex((prev) => ({
             ...prev,
             [activeIndex]: (prev[activeIndex] ?? 0) + 1,
@@ -217,13 +273,15 @@ export function QuestRunner({
     if (checking) return;
 
     setChecking(true);
-    void checkAnswer(lessonId, activeIndex, selectedOption)
+    void checkAnswer(lessonId, activeIndex, selectedOption, section)
       .then((correct) => {
         if (correct) {
           markCorrect();
         } else {
           setStatus("wrong");
-          setHearts((h) => Math.max(0, h - 1));
+          if (section === "core") {
+            setHearts((h) => Math.max(0, h - 1));
+          }
         }
       })
       .catch((err) => {
@@ -233,8 +291,34 @@ export function QuestRunner({
       .finally(() => setChecking(false));
   };
 
-  // ── Экран результата ──
-  if (result) {
+  // ── Экран результата дополнительных заданий ──
+  if (bonusFinished) {
+    return (
+      <>
+        <div className="mx-auto flex h-full max-w-lg flex-col items-center justify-center gap-y-5 px-6 text-center">
+          <div className="text-6xl lg:text-7xl">⭐</div>
+          <h1 className="text-xl font-bold text-neutral-700 lg:text-3xl">
+            Все задания со звёздочкой решены!
+          </h1>
+          <p className="text-neutral-500">
+            Основная часть урока уже была завершена. Дополнительные задания не
+            изменяли её награду.
+          </p>
+        </div>
+        <Footer
+          status="completed"
+          onCheck={() => {
+            window.location.href = previewMode
+              ? `/admin/lessons/${lessonId}`
+              : "/learn";
+          }}
+        />
+      </>
+    );
+  }
+
+  // ── Экран результата основной части ──
+  if (result && phase !== "bonus") {
     return (
       <>
         <div className="mx-auto flex h-full max-w-lg flex-col items-center justify-center gap-y-4 px-6 text-center lg:gap-y-8">
@@ -260,6 +344,24 @@ export function QuestRunner({
             <p className="text-base font-bold text-green-600 lg:text-lg">
               Новый уровень {result.level}! 🚀
             </p>
+          )}
+
+          {bonusQuestions.length > 0 && (
+            <Button
+              type="button"
+              variant="secondaryOutline"
+              size="lg"
+              onClick={() => {
+                setPhase("bonus");
+                setActiveIndex(0);
+                setCompletedCount(0);
+                setSelectedOption(undefined);
+                setStatus("none");
+                setCodeOutput(null);
+              }}
+            >
+              ⭐ Перейти к заданиям со звёздочкой
+            </Button>
           )}
         </div>
 
@@ -350,11 +452,25 @@ export function QuestRunner({
     return (
       <div className="mx-auto flex h-full max-w-lg flex-col items-center justify-center gap-y-6 px-6 text-center">
         <h1 className="text-lg font-bold text-neutral-700 lg:text-2xl">
-          В этом уроке пока нет заданий.
+          {phase === "bonus"
+            ? "В этом уроке нет заданий со звёздочкой."
+            : "В этом уроке пока нет основных заданий."}
         </h1>
-        <Button variant="secondary" size="lg" asChild>
-          <Link href="/learn">Вернуться к курсу</Link>
-        </Button>
+        {phase !== "bonus" && bonusQuestions.length > 0 ? (
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => {
+              finalize();
+            }}
+          >
+            Завершить основную часть
+          </Button>
+        ) : (
+          <Button variant="secondary" size="lg" asChild>
+            <Link href="/learn">Вернуться к курсу</Link>
+          </Button>
+        )}
       </div>
     );
   }
@@ -370,6 +486,11 @@ export function QuestRunner({
               {alreadyCompleted && (
                 <p className="text-center text-xs font-bold uppercase tracking-wide text-neutral-400 lg:text-start">
                   Тренировка · {title}
+                </p>
+              )}
+              {phase === "bonus" && (
+                <p className="text-center text-xs font-bold uppercase tracking-wide text-amber-500 lg:text-start">
+                  ⭐ Задание со звёздочкой {activeIndex + 1} из {total}
                 </p>
               )}
               <h1 className="whitespace-pre-wrap text-center text-lg font-bold text-neutral-700 lg:text-start lg:text-3xl">

@@ -12,12 +12,25 @@ export default async function InterestingPage() {
     redirect("/");
   }
 
-  // Материалы лежат в БД (модель Resource) — раньше были статичным списком.
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { isAdmin: true, groupId: true },
+  });
+  if (!user) redirect("/");
+
+  // Ученик видит только опубликованные карточки своей группы. Наставник видит
+  // всё, чтобы проверить черновик до публикации.
   // sortOrder задаёт порядок: меньше — выше. При равном sortOrder порядок
   // добивается по id — иначе Postgres волен возвращать «ничьи» как попало.
   // Вторым запросом — отметки «Изучил» текущего ученика (для кнопок).
   const [resources, studiedRows] = await Promise.all([
     prisma.resource.findMany({
+      where: user.isAdmin
+        ? {}
+        : {
+            isPublished: true,
+            groupAccess: { some: { groupId: user.groupId ?? -1 } },
+          },
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     }),
     prisma.userResource.findMany({

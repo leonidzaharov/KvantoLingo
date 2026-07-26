@@ -40,6 +40,7 @@ const codeClass = inputClass + " font-mono text-sm";
 type EditorChoice = {
   kind: "choice";
   key: number;
+  bonus: boolean;
   prompt: string;
   options: string[];
   correctIndex: number;
@@ -47,6 +48,7 @@ type EditorChoice = {
 type EditorCode = {
   kind: "code";
   key: number;
+  bonus: boolean;
   prompt: string;
   language: CodeLanguage;
   starterCode: string;
@@ -58,11 +60,15 @@ type EditorQuestion = EditorChoice | EditorCode;
 let nextKey = 1;
 
 function fromContent(content: LessonContent): EditorQuestion[] {
-  return content.questions.map((q) =>
+  const convert = (
+    q: LessonContent["questions"][number],
+    bonus: boolean,
+  ): EditorQuestion =>
     q.type === "code"
       ? {
           kind: "code" as const,
           key: nextKey++,
+          bonus,
           prompt: q.prompt,
           language: q.language ?? "python",
           starterCode: q.starterCode ?? "",
@@ -72,34 +78,41 @@ function fromContent(content: LessonContent): EditorQuestion[] {
       : {
           kind: "choice" as const,
           key: nextKey++,
+          bonus,
           prompt: q.prompt,
           options: [...q.options],
           correctIndex: q.correctIndex,
-        },
-  );
+        };
+
+  return [
+    ...content.questions.map((q) => convert(q, false)),
+    ...content.bonusQuestions.map((q) => convert(q, true)),
+  ];
 }
 
 // Сериализация в формат Lesson.content (см. src/lib/lesson-content.ts).
 function toContentJson(theory: string, questions: EditorQuestion[]): string {
+  const serialize = (q: EditorQuestion) =>
+    q.kind === "code"
+      ? {
+          type: "code" as const,
+          prompt: q.prompt,
+          language: q.language,
+          starterCode: q.starterCode,
+          expectedOutput: q.expectedOutput,
+          referenceSolution: q.referenceSolution,
+        }
+      : {
+          type: "choice" as const,
+          prompt: q.prompt,
+          options: q.options,
+          correctIndex: q.correctIndex,
+        };
+
   return JSON.stringify({
     theory,
-    questions: questions.map((q) =>
-      q.kind === "code"
-        ? {
-            type: "code",
-            prompt: q.prompt,
-            language: q.language,
-            starterCode: q.starterCode,
-            expectedOutput: q.expectedOutput,
-            referenceSolution: q.referenceSolution,
-          }
-        : {
-            type: "choice",
-            prompt: q.prompt,
-            options: q.options,
-            correctIndex: q.correctIndex,
-          },
-    ),
+    questions: questions.filter((q) => !q.bonus).map(serialize),
+    bonusQuestions: questions.filter((q) => q.bonus).map(serialize),
   });
 }
 
@@ -171,10 +184,28 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
   const move = (index: number, dir: -1 | 1) => {
     setQuestions((prev) => {
       const next = [...prev];
-      const j = index + dir;
-      if (j < 0 || j >= next.length) return prev;
+      const question = next[index];
+      if (!question) return prev;
+      const sectionIndexes = next.flatMap((item, itemIndex) =>
+        item.bonus === question.bonus ? [itemIndex] : [],
+      );
+      const sectionIndex = sectionIndexes.indexOf(index);
+      const j = sectionIndexes[sectionIndex + dir];
+      if (j === undefined) return prev;
       [next[index], next[j]] = [next[j], next[index]];
       return next;
+    });
+  };
+
+  const setBonus = (key: number, bonus: boolean) => {
+    setQuestions((prev) => {
+      const changed = prev.find((q) => q.key === key);
+      if (!changed) return prev;
+      const without = prev.filter((q) => q.key !== key);
+      const updated = { ...changed, bonus } as EditorQuestion;
+      const core = without.filter((q) => !q.bonus);
+      const extras = without.filter((q) => q.bonus);
+      return bonus ? [...core, ...extras, updated] : [...core, updated, ...extras];
     });
   };
 
@@ -182,12 +213,13 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
     setQuestions((prev) => prev.filter((q) => q.key !== key));
   };
 
-  const addChoice = () => {
+  const addChoice = (bonus = false) => {
     setQuestions((prev) => [
       ...prev,
       {
         kind: "choice",
         key: nextKey++,
+        bonus,
         prompt: "",
         options: ["", ""],
         correctIndex: 0,
@@ -195,12 +227,13 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
     ]);
   };
 
-  const addCode = () => {
+  const addCode = (bonus = false) => {
     setQuestions((prev) => [
       ...prev,
       {
         kind: "code",
         key: nextKey++,
+        bonus,
         prompt: "",
         language: "python",
         starterCode: "",
@@ -242,6 +275,18 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
       update(key, { expectedOutput: res.output });
       done("Готово: «Ожидаемый вывод» заполнен из вывода решения.", false);
     });
+  };
+
+  const coreCount = questions.filter((q) => !q.bonus).length;
+  const bonusCount = questions.length - coreCount;
+  const canMove = (index: number, dir: -1 | 1) => {
+    const current = questions[index];
+    if (!current) return false;
+    const sectionIndexes = questions.flatMap((q, itemIndex) =>
+      q.bonus === current.bonus ? [itemIndex] : [],
+    );
+    const sectionIndex = sectionIndexes.indexOf(index);
+    return sectionIndexes[sectionIndex + dir] !== undefined;
   };
 
   return (
@@ -346,17 +391,30 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
       </div>
 
       <h2 className="mt-2 text-lg font-bold text-neutral-700">
-        Задания ({questions.length})
+        Основные задания ({coreCount}) · Со звёздочкой ({bonusCount})
       </h2>
+      <p className="text-sm text-neutral-500">
+        Задания со звёздочкой открываются после основной части и не влияют на
+        завершение урока или основную награду.
+      </p>
 
       {questions.map((q, index) => (
         <div
           key={q.key}
-          className="flex flex-col gap-y-3 rounded-2xl border-2 border-neutral-200 p-4"
+          className={
+            "flex flex-col gap-y-3 rounded-2xl border-2 p-4 " +
+            (q.bonus
+              ? "border-amber-200 bg-amber-50/40"
+              : "border-neutral-200")
+          }
         >
           <div className="flex items-center gap-x-2">
             <span className="flex-1 text-xs font-bold uppercase tracking-wide text-neutral-400">
-              {index + 1} ·{" "}
+              {q.bonus ? "⭐ Дополнительное" : "Основное"}{" "}
+              {questions
+                .slice(0, index + 1)
+                .filter((item) => item.bonus === q.bonus).length}
+              {" · "}
               {q.kind === "code"
                 ? `Код (${LANGUAGE_LABELS[q.language]})`
                 : "Выбор ответа"}
@@ -365,7 +423,7 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
               type="button"
               variant="ghost"
               size="sm"
-              disabled={index === 0}
+              disabled={!canMove(index, -1)}
               onClick={() => move(index, -1)}
               aria-label="Выше"
             >
@@ -375,7 +433,7 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
               type="button"
               variant="ghost"
               size="sm"
-              disabled={index === questions.length - 1}
+              disabled={!canMove(index, 1)}
               onClick={() => move(index, 1)}
               aria-label="Ниже"
             >
@@ -391,6 +449,16 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
+
+          <label className="flex items-center gap-2 rounded-xl bg-white/70 p-2 text-sm font-medium text-neutral-700">
+            <input
+              type="checkbox"
+              checked={q.bonus}
+              onChange={(event) => setBonus(q.key, event.target.checked)}
+              className="h-5 w-5 accent-amber-500"
+            />
+            Задание со звёздочкой — показывать после основной части
+          </label>
 
           <label className="flex flex-col gap-y-1.5">
             <span className="text-sm font-bold text-neutral-700">
@@ -593,13 +661,35 @@ export const LessonForm = ({ categories, lesson }: LessonFormProps) => {
       ))}
 
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="secondaryOutline" onClick={addChoice}>
+        <Button
+          type="button"
+          variant="secondaryOutline"
+          onClick={() => addChoice()}
+        >
           <Plus className="mr-2 h-5 w-5" />
-          Вопрос с вариантами
+          Основной вопрос
         </Button>
-        <Button type="button" variant="secondaryOutline" onClick={addCode}>
+        <Button
+          type="button"
+          variant="secondaryOutline"
+          onClick={() => addCode()}
+        >
           <Plus className="mr-2 h-5 w-5" />
-          Задание с кодом
+          Основное задание с кодом
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => addChoice(true)}
+        >
+          ⭐ Дополнительный вопрос
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => addCode(true)}
+        >
+          ⭐ Дополнительный код
         </Button>
       </div>
 

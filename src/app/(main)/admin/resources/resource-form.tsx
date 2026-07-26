@@ -26,6 +26,8 @@ type ResourceFormProps = {
   resource?: Resource;
   /** Порядок по умолчанию для нового материала (максимум + 1). */
   defaultSortOrder?: number;
+  groups: { id: number; name: string }[];
+  selectedGroupIds?: number[];
 };
 
 // Одна форма на создание и правку: скрытое поле id пустое → create.
@@ -33,6 +35,8 @@ type ResourceFormProps = {
 export const ResourceForm = ({
   resource,
   defaultSortOrder,
+  groups,
+  selectedGroupIds = [],
 }: ResourceFormProps) => {
   const [state, formAction, pending] = useActionState<
     ResourceFormState,
@@ -60,6 +64,40 @@ export const ResourceForm = ({
           ))}
         </select>
       </label>
+
+      <fieldset className="space-y-2 rounded-2xl border-2 border-neutral-200 p-4">
+        <legend className="px-2 font-bold text-neutral-700">
+          Группы материала
+        </legend>
+        <p className="text-sm text-neutral-500">
+          После публикации карточку увидят только отмеченные группы.
+        </p>
+        {groups.length === 0 ? (
+          <p className="text-sm text-amber-600">
+            Сначала создайте хотя бы одну группу.
+          </p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {groups.map((group) => (
+              <label
+                key={group.id}
+                className="flex items-center gap-2 rounded-xl bg-neutral-50 p-3"
+              >
+                <input
+                  type="checkbox"
+                  name="groupId"
+                  value={group.id}
+                  defaultChecked={selectedGroupIds.includes(group.id)}
+                  className="h-5 w-5 accent-green-600"
+                />
+                <span className="font-medium text-neutral-700">
+                  {group.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+      </fieldset>
 
       <label className="flex flex-col gap-y-1.5">
         <span className="font-bold text-neutral-700">Заголовок</span>
